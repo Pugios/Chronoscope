@@ -41,7 +41,11 @@ class TimeManagement:
   def month_import_and_preprocess(self, month):
     today = DT.date.today()
     fd = today.replace(month=month, day=1)
-    td = today.replace(month=month+1, day=1) - DT.timedelta(days=1)
+    # get last day of month
+    if month == 12:
+      td = today.replace(day=31)
+    else:
+      td = today.replace(month=month+1, day=1) - DT.timedelta(days=1)
 
     self.import_and_preprocess(fd, td)
 
@@ -265,7 +269,11 @@ class TimeManagement:
 
     used_axes = set()
     fd = DT.date.today().replace(month=month, day=1)
-    td = (DT.date.today().replace(month=month+1, day=1) - DT.timedelta(days=1))
+    # get last day of month
+    if month == 12:
+      td = DT.date.today().replace(day=31)
+    else:
+      td = (DT.date.today().replace(month=month+1, day=1) - DT.timedelta(days=1))
     
     days = td.day
     for i, j in enumerate(range(fd.weekday(), days+1)):
