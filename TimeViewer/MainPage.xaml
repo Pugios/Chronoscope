@@ -1,29 +1,62 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.Maui;assembly=LiveChartsCore.SkiaSharpView.Maui"
+             xmlns:local="clr-namespace:TimeViewer"
              x:Class="TimeViewer.MainPage">
 
+    <HorizontalStackLayout>
+        <VerticalStackLayout>
+            <lvc:PieChart
+                Series="{Binding DaySeries}"
+                InitialRotation="-90"
+                WidthRequest="500"
+                HeightRequest="500"
+                LegendPosition="Hidden">
+            </lvc:PieChart>
+
+            <Button
+                x:Name="Refresh"
+                Text="Refresh" 
+                SemanticProperties.Hint="Refreshes Graphs"
+                Clicked="OnRefreshClicked"
+                HorizontalOptions="Fill" />
+        </VerticalStackLayout>
+
+        <ScrollView>
+            <CollectionView ItemsSource="{Binding LegendItems}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Grid.Column="0" Text="{Binding Name}" FontAttributes="Bold" />
+                            <Label Grid.Column="1"
+                               Text="{Binding Duration}"
+                               HorizontalTextAlignment="End"
+                               HorizontalOptions="End" />
+                        </Grid>
+                        <!--
+                        <HorizontalStackLayout Spacing="6">
+                            <Label Text="{Binding Name}" FontAttributes="Bold"/>
+                            <Label Text="{Binding Duration}"/>
+                        </HorizontalStackLayout>
+                        -->
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </ScrollView>
+        
+    </HorizontalStackLayout>
+    <!--
     <ScrollView>
         <VerticalStackLayout
             Padding="30,0"
             Spacing="25">
-            <Image
-                Source="dotnet_bot.png"
-                HeightRequest="185"
-                Aspect="AspectFit"
-                SemanticProperties.Description="dot net bot in a submarine number ten" />
-
+            
             <Label
                 Text="Hello, World!"
                 Style="{StaticResource Headline}"
                 SemanticProperties.HeadingLevel="Level1" />
-
-            <Label
-                Text="Welcome to &#10;.NET Multi-platform App UI"
-                Style="{StaticResource SubHeadline}"
-                SemanticProperties.HeadingLevel="Level2"
-                SemanticProperties.Description="Welcome to dot net Multi platform App U I" />
-
+            
             <Button
                 x:Name="CounterBtn"
                 Text="Click me" 
@@ -32,5 +65,6 @@
                 HorizontalOptions="Fill" />
         </VerticalStackLayout>
     </ScrollView>
+    -->
 
 </ContentPage>
