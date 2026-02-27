@@ -7,20 +7,31 @@
 
     <HorizontalStackLayout>
         <VerticalStackLayout>
-            <lvc:PieChart
-                Series="{Binding DaySeries}"
-                InitialRotation="-90"
+            <lvc:PieChart 
+                InitialRotation="-90" 
+                SeriesSource="{Binding PieDataCollection}"
                 WidthRequest="500"
-                HeightRequest="500"
-                LegendPosition="Hidden">
+                HeightRequest="500">
+                <lvc:PieChart.SeriesTemplate>
+                    <DataTemplate x:DataType="local:PieData">
+                        <lvc:XamlPieSeries
+                            SeriesName="{Binding Name}"
+                            Values="{Binding Values}"
+                            ToolTipLabelFormatter="{Binding Formatter}"
+                            Fill="{Binding Fill}">
+                        </lvc:XamlPieSeries>
+                    </DataTemplate>
+                </lvc:PieChart.SeriesTemplate>
             </lvc:PieChart>
 
-            <Button
-                x:Name="Refresh"
-                Text="Refresh" 
-                SemanticProperties.Hint="Refreshes Graphs"
-                Clicked="OnRefreshClicked"
-                HorizontalOptions="Fill" />
+            <HorizontalStackLayout HorizontalOptions="Center" Spacing="10">
+                <Button Text="&lt;&lt;" Clicked="OnPrevWeekClicked" />
+                <Button Text="&lt;" Clicked="OnPrevDayClicked" />
+                <Label Text="{Binding DisplayDay}" VerticalTextAlignment="Center" />
+                <Button Text="&#10227;" Clicked="OnRefreshClicked" />
+                <Button Text=">" Clicked="OnNextDayClicked" />
+                <Button Text=">>" Clicked="OnNextWeekClicked" />
+            </HorizontalStackLayout>
         </VerticalStackLayout>
 
         <ScrollView>
@@ -34,37 +45,10 @@
                                HorizontalTextAlignment="End"
                                HorizontalOptions="End" />
                         </Grid>
-                        <!--
-                        <HorizontalStackLayout Spacing="6">
-                            <Label Text="{Binding Name}" FontAttributes="Bold"/>
-                            <Label Text="{Binding Duration}"/>
-                        </HorizontalStackLayout>
-                        -->
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
         </ScrollView>
-        
-    </HorizontalStackLayout>
-    <!--
-    <ScrollView>
-        <VerticalStackLayout
-            Padding="30,0"
-            Spacing="25">
-            
-            <Label
-                Text="Hello, World!"
-                Style="{StaticResource Headline}"
-                SemanticProperties.HeadingLevel="Level1" />
-            
-            <Button
-                x:Name="CounterBtn"
-                Text="Click me" 
-                SemanticProperties.Hint="Counts the number of times you click"
-                Clicked="OnCounterClicked"
-                HorizontalOptions="Fill" />
-        </VerticalStackLayout>
-    </ScrollView>
-    -->
 
+    </HorizontalStackLayout>
 </ContentPage>

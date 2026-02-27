@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.Maui;assembly=LiveChartsCore.SkiaSharpView.Maui"
+    xmlns:vms="clr-namespace:ViewModelsSamples.Pies.Nested"
+    xmlns:local="clr-namespace:TimeViewer"
+    x:DataType="vms:ViewModel"
+    x:Class="TimeViewer.NestedPieExample">
+
+    <ContentPage.BindingContext>
+        <vms:ViewModel/>
+    </ContentPage.BindingContext>
+
+    <ContentPage.Resources>
+        <local:StringToPaintConverter x:Key="StringToPaintConverter" />
+    </ContentPage.Resources>
+
+    <lvc:PieChart InitialRotation="120" SeriesSource="{Binding PieDataCollection}" LegendPosition="Right">
+        <lvc:PieChart.SeriesTemplate>
+            <DataTemplate x:DataType="vms:PieData">
+                <lvc:XamlPieSeries
+                    SeriesName="{Binding Name}"
+                    Values="{Binding Values}"
+                    Stroke="{lvc:SolidColorPaint Color='#fff', StrokeWidth=2}"
+                    Fill="{Binding Color, Converter={StaticResource StringToPaintConverter}}"
+                    DataLabelsFormatter="{Binding Formatter}"
+                    DataLabelsSize="20"
+                    ShowDataLabels="{Binding IsTotal}"
+                    DataLabelsPosition="Outer"
+                    IsVisibleAtLegend="{Binding IsTotal}">
+                </lvc:XamlPieSeries>
+            </DataTemplate>
+        </lvc:PieChart.SeriesTemplate>
+    </lvc:PieChart>
+</ContentPage>
