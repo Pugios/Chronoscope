@@ -37,10 +37,17 @@
         <ScrollView>
             <CollectionView ItemsSource="{Binding LegendItems}">
                 <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Grid.Column="0" Text="{Binding Name}" FontAttributes="Bold" />
-                            <Label Grid.Column="1"
+                    <DataTemplate x:DataType="local:LegendItem">
+                        <Grid ColumnDefinitions="Auto, *,Auto">
+                            <BoxView Grid.Column="0"
+                                 Color="{Binding Color}"
+                                 WidthRequest="12"
+                                 HeightRequest="12"
+                                 CornerRadius="6"
+                                 VerticalOptions="Center"
+                                 Margin="0,0,6,0"/>
+                            <Label Grid.Column="1" Text="{Binding Name}" FontAttributes="Bold" />
+                            <Label Grid.Column="2"
                                Text="{Binding Duration}"
                                HorizontalTextAlignment="End"
                                HorizontalOptions="End" />
