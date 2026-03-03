@@ -1,12 +1,16 @@
 ﻿using CsvHelper.Configuration.Attributes;
 using LiveChartsCore.Kernel;
 using LiveChartsCore.SkiaSharpView.Painting;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace TimeViewer;
 
+// Settings
+public class AppSettings
+{
+    public Dictionary<string, string> TagColors { get; set; } = new();
+}
+
+// Data Services
 public class TagTable
 {
     public string Process { get; set; }
@@ -35,6 +39,7 @@ public class AppsTable
     }
 }
 
+// Graph
 public class PieData
 {
     public string Name { get; set; }
@@ -48,4 +53,5 @@ public class LegendItem
     public string Name { get; set; }
     public string Duration { get; set; }
     public Color Color { get; set; }
+    public Thickness Indent { get; set; }
 }

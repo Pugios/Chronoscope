@@ -2,6 +2,7 @@
 using SkiaSharp;
 using System.ComponentModel;
 using System.Diagnostics;
+using TimeViewer.Platforms;
 
 namespace TimeViewer;
 public partial class MainPage : ContentPage, INotifyPropertyChanged
@@ -13,20 +14,21 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
     int MaxRadialColumnWidth = 100;
     int RefreshTime = 5; // in minutes
 
-    // Load Settings & DataService
-    private readonly SettingsService _settingsService = new();
-    private readonly DataService _dataService = new();
-
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    //  Loading Data & Refresh Logic
+    //  Loading Data & Settings & Refresh Logic
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+    private readonly SettingsService _settingsService;
+    private readonly DataService _dataService;
     private readonly IDispatcherTimer _refreshTimer;
 
-    public MainPage()
+    public MainPage(SettingsService settingsService, DataService dataService)
     {
         InitializeComponent();
         BindingContext = this;
+
+        _settingsService = settingsService;
+        _dataService = dataService;
 
         _refreshTimer = Dispatcher.CreateTimer();
         _refreshTimer.Interval = TimeSpan.FromMinutes(RefreshTime);
@@ -98,7 +100,19 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
         await ChangeDayAsync(7);
     }
 
+    private bool _isPinned = false;
+    private void OnPinClicked(object? sender, EventArgs e)
+    {
+        _isPinned = !_isPinned;
+        #if WINDOWS
+        new TimeViewer.Platforms.Windows.WindowService().SetAlwaysOnTop(_isPinned);
+        #endif
+    }
 
+    private async void OnSettingsClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync(nameof(SettingsPage));
+    }
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Graph
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -197,7 +211,8 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
             {
                 Name = tag.Tag,
                 Duration = TimeSpan.FromSeconds(tag.Seconds).ToString(@"hh\:mm"),
-                Color = Color.FromArgb(tagColor)
+                Color = Color.FromArgb(tagColor),
+                Indent = new Thickness(0, 0, 0, 0)
             });
 
             int processCount = tag.Processes.Count;
@@ -218,9 +233,10 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
 
                 legendItemList.Add(new LegendItem
                 {
-                    Name = "\t" + proc.Process,
+                    Name = proc.Process,
                     Duration = TimeSpan.FromSeconds(proc.Seconds).ToString(@"hh\:mm"),
-                    Color = Color.FromArgb(procColor)
+                    Color = Color.FromArgb(procColor),
+                    Indent = new Thickness(20, 0, 0, 0)
                 });
 
                 totalSeconds += proc.Seconds;
@@ -230,7 +246,7 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
         // Add remaining time to reach 24h
         var remaining = Math.Max(0, TimeSpan.FromDays(1).TotalSeconds - totalSeconds);
 
-        var remainColor = _settingsService.GetTagColor("Remaining");
+        var remainColor = _settingsService.GetTagColor("Remaining", 50f);
         var remainPaint = new SolidColorPaint(SKColor.Parse(remainColor));
 
         pieDataList.Add(new PieData { Name = "Remaining", Values = [null, remaining], Fill = remainPaint });

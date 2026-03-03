@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+        xmlns:local="clr-namespace:TimeViewer"
+        xmlns:cp="clr-namespace:Maui.ColorPicker;assembly=Maui.ColorPicker"
+        x:Class="TimeViewer.Platforms.SettingsPage" 
+        Title="Settings">
+    <Grid>
+        <VerticalStackLayout Spacing="20" Padding="20">
+            <CollectionView ItemsSource="{Binding TagColors}">
+                <CollectionView.ItemsLayout>
+                    <LinearItemsLayout Orientation="Vertical" />
+                </CollectionView.ItemsLayout>
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="local:TagColorRow">
+                        <HorizontalStackLayout Spacing="12" Padding="8,4">
+                            <Label Text="{Binding Tag}" VerticalOptions="Center"
+                                    WidthRequest="120" />
+                            <BoxView Color="{Binding Color}" WidthRequest="40"
+                                    HeightRequest="40" CornerRadius="8"
+                                    VerticalOptions="Center" />
+                            <Grid>
+                                <BoxView HeightRequest="20" CornerRadius="8"
+                                        VerticalOptions="Center" Margin="10,0">
+                                    <BoxView.Background>
+                                        <LinearGradientBrush StartPoint="0,0"
+                                                EndPoint="1,0">
+                                            <GradientStop Color="Red"
+                                                    Offset="0.0" />
+                                            <GradientStop Color="Yellow"
+                                                    Offset="0.17" />
+                                            <GradientStop Color="Lime"
+                                                    Offset="0.33" />
+                                            <GradientStop Color="Cyan"
+                                                    Offset="0.5" />
+                                            <GradientStop Color="Blue"
+                                                    Offset="0.67" />
+                                            <GradientStop Color="Magenta"
+                                                    Offset="0.83" />
+                                            <GradientStop Color="Red"
+                                                    Offset="1.0" />
+                                        </LinearGradientBrush>
+                                    </BoxView.Background>
+                                </BoxView>
+                                <Slider Minimum="0" Maximum="360"
+                                        Value="{Binding Hue}" WidthRequest="200"
+                                        VerticalOptions="Center"
+                                        MinimumTrackColor="Transparent"
+                                        MaximumTrackColor="Transparent" />
+                            </Grid>
+                        </HorizontalStackLayout>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Button Text="Save" Clicked="OnSaveClicked" />
+        </VerticalStackLayout>
+
+
+    </Grid>
+</ContentPage>

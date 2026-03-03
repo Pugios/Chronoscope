@@ -1,14 +1,12 @@
 ﻿using SkiaSharp;
+using SkiaSharp.Views.Maui;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
 namespace TimeViewer;
-public class AppSettings
-{
-    public Dictionary<string, string> TagColors { get; set; } = new();
-}
 
 public class SettingsService
 {
@@ -18,6 +16,7 @@ public class SettingsService
 
     public async Task LoadAsync()
     {
+        Debug.WriteLine($"FileSystem.AppDataDirectory: {FileSystem.AppDataDirectory}");
         if (!File.Exists(_filePath))
         {
             _settings = new AppSettings();
@@ -33,15 +32,24 @@ public class SettingsService
         await File.WriteAllTextAsync(_filePath, json);
     }
 
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Tag Colors
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    // Expose all Tag Colors as ReadOnly
+    public IReadOnlyDictionary<string, string> TagColors => _settings.TagColors;
+
     // Get or Create Color for a Tag
-    public string GetTagColor(string tag)
+    public string GetTagColor(string tag, float saturation = 100f)
     {
         if (_settings.TagColors.TryGetValue(tag, out var color))
             return color;
 
         // Auto-assign a random color and save it
         var random = new Random();
-        color = $"#{random.Next(0x1000000):X6}";
+        float hue = random.Next(0, 360); // 0–359
+        color = SKColor.FromHsv(hue, saturation, 100f).ToString();
         _settings.TagColors[tag] = color;
         _ = SaveAsync();
         return color;
@@ -54,5 +62,11 @@ public class SettingsService
         color.ToHsv(out float h, out float s, out float v);
         v = Math.Min(100f, value);
         return SKColor.FromHsv(h, s, v).ToString();
+    }
+
+    // Set a new Color
+    public void SetTagColor(string tag, string color)
+    {
+        _settings.TagColors[tag] = color;
     }
 }
