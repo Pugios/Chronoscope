@@ -2,61 +2,65 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
         xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
         xmlns:local="clr-namespace:TimeViewer"
-        xmlns:cp="clr-namespace:Maui.ColorPicker;assembly=Maui.ColorPicker"
-        x:Class="TimeViewer.Platforms.SettingsPage" 
+        xmlns:controls="clr-namespace:Maui.ColorPicker;assembly=Maui.ColorPicker"
+        xmlns:dg="clr-namespace:Maui.DataGrid;assembly=Maui.DataGrid"
+        x:Class="TimeViewer.Platforms.SettingsPage"
         Title="Settings">
-    <Grid>
-        <VerticalStackLayout Spacing="20" Padding="20">
-            <CollectionView ItemsSource="{Binding TagColors}">
-                <CollectionView.ItemsLayout>
-                    <LinearItemsLayout Orientation="Vertical" />
-                </CollectionView.ItemsLayout>
+    <VerticalStackLayout Spacing="20" Padding="20">
+        <!-- Color Picker -->
+        <CollectionView ItemsSource="{Binding TagColors}">
+            <CollectionView.ItemsLayout>
+                <LinearItemsLayout Orientation="Vertical" />
+            </CollectionView.ItemsLayout>
 
-                <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="local:TagColorRow">
-                        <HorizontalStackLayout Spacing="12" Padding="8,4">
-                            <Label Text="{Binding Tag}" VerticalOptions="Center"
-                                    WidthRequest="120" />
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="local:TagColorRow">
+                    <HorizontalStackLayout Spacing="12" Padding="8,4">
+
+                        <Label Text="{Binding Tag}" VerticalOptions="Center"
+                                WidthRequest="120" />
+
+                        <VerticalStackLayout>
+
                             <BoxView Color="{Binding Color}" WidthRequest="40"
                                     HeightRequest="40" CornerRadius="8"
-                                    VerticalOptions="Center" />
-                            <Grid>
-                                <BoxView HeightRequest="20" CornerRadius="8"
-                                        VerticalOptions="Center" Margin="10,0">
-                                    <BoxView.Background>
-                                        <LinearGradientBrush StartPoint="0,0"
-                                                EndPoint="1,0">
-                                            <GradientStop Color="Red"
-                                                    Offset="0.0" />
-                                            <GradientStop Color="Yellow"
-                                                    Offset="0.17" />
-                                            <GradientStop Color="Lime"
-                                                    Offset="0.33" />
-                                            <GradientStop Color="Cyan"
-                                                    Offset="0.5" />
-                                            <GradientStop Color="Blue"
-                                                    Offset="0.67" />
-                                            <GradientStop Color="Magenta"
-                                                    Offset="0.83" />
-                                            <GradientStop Color="Red"
-                                                    Offset="1.0" />
-                                        </LinearGradientBrush>
-                                    </BoxView.Background>
-                                </BoxView>
-                                <Slider Minimum="0" Maximum="360"
-                                        Value="{Binding Hue}" WidthRequest="200"
-                                        VerticalOptions="Center"
-                                        MinimumTrackColor="Transparent"
-                                        MaximumTrackColor="Transparent" />
-                            </Grid>
-                        </HorizontalStackLayout>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
+                                    VerticalOptions="Center">
+                                <BoxView.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnColorTapped" />
+                                </BoxView.GestureRecognizers>
+                            </BoxView>
 
-            <Button Text="Save" Clicked="OnSaveClicked" />
-        </VerticalStackLayout>
+                            <Border IsVisible="{Binding IsPickerVisible}"
+                                    Stroke="LightGray" StrokeThickness="1"
+                                    BackgroundColor="White" Padding="8"
+                                    TranslationY="4">
+                                <controls:ColorPicker x:Name="ColorPicker"
+                                        WidthRequest="280" HeightRequest="140"
+                                        ColorSpectrumStyle="TintToHueToShadeStyle"
+                                        PickedColorChanged="ColorPicker_PickedColorChanged" />
+                            </Border>
+                        </VerticalStackLayout>
 
+                    </HorizontalStackLayout>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+        
+        <!-- Data Grid -->
+        <dg:DataGrid ItemsSource="{Binding ProcessRows}"
+                     HeightRequest="400">
+            <dg:DataGrid.Columns>
+                <dg:DataGridColumn Title="Process" PropertyName="Process"
+                        Width="2*" />
+                <dg:DataGridColumn Title="Tag" PropertyName="Tag" Width="1*" />
+                <dg:DataGridColumn Title="Total Time" PropertyName="TotalTime"
+                        Width="1*" />
+                <dg:DataGridColumn Title="Last Used" PropertyName="LastUsed"
+                        Width="2*" />
+            </dg:DataGrid.Columns>
+        </dg:DataGrid>
 
-    </Grid>
+        <!-- Save Button -->
+        <Button Text="Save" Clicked="OnSaveClicked" />
+    </VerticalStackLayout>
 </ContentPage>

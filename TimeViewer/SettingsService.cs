@@ -41,15 +41,17 @@ public class SettingsService
     public IReadOnlyDictionary<string, string> TagColors => _settings.TagColors;
 
     // Get or Create Color for a Tag
-    public string GetTagColor(string tag, float saturation = 100f)
+    public string GetTagColor(string tag)
     {
-        if (_settings.TagColors.TryGetValue(tag, out var color))
+        if (_settings.TagColors.TryGetValue(tag, out string color))
             return color;
 
         // Auto-assign a random color and save it
         var random = new Random();
-        float hue = random.Next(0, 360); // 0–359
-        color = SKColor.FromHsv(hue, saturation, 100f).ToString();
+        color = Color.FromRgb(
+            (byte) random.Next(0, 255),
+            (byte) random.Next(0, 255),
+            (byte) random.Next(0, 255)).ToHex();
         _settings.TagColors[tag] = color;
         _ = SaveAsync();
         return color;

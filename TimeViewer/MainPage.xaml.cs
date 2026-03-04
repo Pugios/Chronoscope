@@ -200,7 +200,7 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
         foreach (var tag in nested)
         {
             // TAG
-            var tagColor = _settingsService.GetTagColor(tag.Tag);
+            string tagColor = _settingsService.GetTagColor(tag.Tag);
             pieDataList.Add(new PieData {
                 Name = tag.Tag,
                 Values = [null, tag.Seconds],
@@ -211,7 +211,7 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
             {
                 Name = tag.Tag,
                 Duration = TimeSpan.FromSeconds(tag.Seconds).ToString(@"hh\:mm"),
-                Color = Color.FromArgb(tagColor),
+                Color = Color.Parse(tagColor),
                 Indent = new Thickness(0, 0, 0, 0)
             });
 
@@ -221,8 +221,10 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
                 // PROCESS
                 var proc = tag.Processes[i];
 
-                float value = 20f + ((float)i + 1f) / processCount * 80f;
-                var procColor = _settingsService.ChangeColor(tagColor, value);
+                //float value = 20f + ((float)i + 1f) / processCount * 80f;
+                // Longest Process = Brightest Color
+                float value = 20f + (((processCount - (float)i) / processCount) * 80f);
+                string procColor = _settingsService.ChangeColor(tagColor, value);
 
                 pieDataList.Add(new PieData
                 {
@@ -235,7 +237,7 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
                 {
                     Name = proc.Process,
                     Duration = TimeSpan.FromSeconds(proc.Seconds).ToString(@"hh\:mm"),
-                    Color = Color.FromArgb(procColor),
+                    Color = Color.Parse(procColor),
                     Indent = new Thickness(20, 0, 0, 0)
                 });
 
@@ -246,7 +248,7 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
         // Add remaining time to reach 24h
         var remaining = Math.Max(0, TimeSpan.FromDays(1).TotalSeconds - totalSeconds);
 
-        var remainColor = _settingsService.GetTagColor("Remaining", 50f);
+        var remainColor = _settingsService.GetTagColor("Remaining");
         var remainPaint = new SolidColorPaint(SKColor.Parse(remainColor));
 
         pieDataList.Add(new PieData { Name = "Remaining", Values = [null, remaining], Fill = remainPaint });

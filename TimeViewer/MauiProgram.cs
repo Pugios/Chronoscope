@@ -25,6 +25,7 @@ namespace TimeViewer
             builder.Services.AddSingleton<DataService>();
             builder.Services.AddSingleton<SettingsService>();
 
+
 #if DEBUG
             builder.Logging.AddDebug();
 #endif
