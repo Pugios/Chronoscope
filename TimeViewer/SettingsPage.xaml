@@ -3,9 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
         xmlns:local="clr-namespace:TimeViewer"
         xmlns:controls="clr-namespace:Maui.ColorPicker;assembly=Maui.ColorPicker"
-        xmlns:dg="clr-namespace:Maui.DataGrid;assembly=Maui.DataGrid"
-        x:Class="TimeViewer.Platforms.SettingsPage"
-        Title="Settings">
+        xmlns:sf="clr-namespace:Syncfusion.Maui.DataGrid;assembly=Syncfusion.Maui.DataGrid"
+        xmlns:data="clr-namespace:Syncfusion.Maui.Data;assembly=Syncfusion.Maui.Data"
+        x:Class="TimeViewer.SettingsPage" Title="Settings">
+    <ContentPage.Resources>
+        <local:DateSortComparer x:Key="DateComparer" />
+        <local:TotalSecondsSortComparer x:Key="TotalSecondsComparer" />
+    </ContentPage.Resources>
+
     <VerticalStackLayout Spacing="20" Padding="20">
         <!-- Color Picker -->
         <CollectionView ItemsSource="{Binding TagColors}">
@@ -45,20 +50,31 @@
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
-        
-        <!-- Data Grid -->
-        <dg:DataGrid ItemsSource="{Binding ProcessRows}"
-                     HeightRequest="400">
-            <dg:DataGrid.Columns>
-                <dg:DataGridColumn Title="Process" PropertyName="Process"
-                        Width="2*" />
-                <dg:DataGridColumn Title="Tag" PropertyName="Tag" Width="1*" />
-                <dg:DataGridColumn Title="Total Time" PropertyName="TotalTime"
-                        Width="1*" />
-                <dg:DataGridColumn Title="Last Used" PropertyName="LastUsed"
-                        Width="2*" />
-            </dg:DataGrid.Columns>
-        </dg:DataGrid>
+
+        <sf:SfDataGrid ItemsSource="{Binding ProcessRows}"
+                AutoGenerateColumnsMode="None" HeightRequest="400"
+                DefaultStyle="{StaticResource DefaultDataGridStyle}"
+                SortingMode="Single">
+
+            <sf:SfDataGrid.SortComparers>
+                <data:SortComparer Comparer="{StaticResource DateComparer}"
+                        PropertyName="LastUsed" />
+                <data:SortComparer
+                        Comparer="{StaticResource TotalSecondsComparer}"
+                        PropertyName="TotalTime" />
+            </sf:SfDataGrid.SortComparers>
+
+            <sf:SfDataGrid.Columns>
+                <sf:DataGridTextColumn HeaderText="Process"
+                        MappingName="Process" Width="200" />
+                <sf:DataGridTextColumn HeaderText="Tag" MappingName="Tag"
+                        Width="120" AllowFiltering="True"/>
+                <sf:DataGridTextColumn HeaderText="Total Time"
+                        MappingName="TotalTime" Width="100" />
+                <sf:DataGridTextColumn HeaderText="Last Used"
+                        MappingName="LastUsed" Width="160" />
+            </sf:SfDataGrid.Columns>
+        </sf:SfDataGrid>
 
         <!-- Save Button -->
         <Button Text="Save" Clicked="OnSaveClicked" />

@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 using TimeViewer.Platforms;
+using Syncfusion.Maui.Core.Hosting;
 
 namespace TimeViewer
 {
@@ -25,6 +26,7 @@ namespace TimeViewer
             builder.Services.AddSingleton<DataService>();
             builder.Services.AddSingleton<SettingsService>();
 
+            builder.ConfigureSyncfusionCore();
 
 #if DEBUG
             builder.Logging.AddDebug();

@@ -6,6 +6,7 @@ namespace TimeViewer
     {
         public App()
         {
+            Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(Secrets.SyncfusionLicenseKey);
             InitializeComponent();
         }
 

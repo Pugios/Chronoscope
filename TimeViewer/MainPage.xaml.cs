@@ -2,7 +2,6 @@
 using SkiaSharp;
 using System.ComponentModel;
 using System.Diagnostics;
-using TimeViewer.Platforms;
 
 namespace TimeViewer;
 public partial class MainPage : ContentPage, INotifyPropertyChanged

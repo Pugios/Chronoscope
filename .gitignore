@@ -2,6 +2,7 @@ data/*
 graphs/*
 *.jpg
 secrets.json
+Secrets.cs
 
 # Created by https://gitignore.org
 # Dotnet.gitignore

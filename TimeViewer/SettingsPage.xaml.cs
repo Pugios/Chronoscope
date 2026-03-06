@@ -1,11 +1,10 @@
 using Maui.ColorPicker;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
+using Syncfusion.Maui.Data;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
 
-namespace TimeViewer.Platforms;
+namespace TimeViewer;
 
 public partial class SettingsPage : ContentPage, INotifyPropertyChanged
 {
@@ -112,7 +111,10 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
                     TotalTime = totalTime.Days > 0
                             ? totalTime.ToString(@"d\d\ hh\:mm")
                             : totalTime.ToString(@"hh\:mm"),
-                    LastUsed = g.Max(a => a.End).ToString("yyyy-MM-dd HH:mm")
+                    LastUsed = g.Max(a => a.End).ToString("yyyy-MM-dd HH:mm"),
+
+                    TotalSeconds = totalTime.TotalSeconds,
+                    LastUsedDate = g.Max(a => a.End)
                 };
             })
             .OrderBy(r => r.Process)
@@ -182,4 +184,37 @@ public class ProcessRow
     public string Tag { get; set; }
     public string TotalTime { get; set; }
     public string LastUsed { get; set; }
+    // For Sorting
+    public double TotalSeconds { get; set; }
+    public DateTime LastUsedDate { get; set; }
+}
+
+// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Custom Comparer for Sorting
+// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+public class DateSortComparer : IComparer<object>, ISortDirection
+{
+    public ListSortDirection SortDirection { get; set; }
+
+    public int Compare(object x, object y)
+    {
+        var dateX = ((ProcessRow)x).LastUsedDate;
+        var dateY = ((ProcessRow)y).LastUsedDate;
+        int result = dateX.CompareTo(dateY);
+        return SortDirection == ListSortDirection.Ascending ? result : -result;
+    }
+}
+
+public class TotalSecondsSortComparer : IComparer<object>, ISortDirection
+{
+    public ListSortDirection SortDirection { get; set; }
+
+    public int Compare(object x, object y)
+    {
+        var secX = ((ProcessRow)x).TotalSeconds;
+        var secY = ((ProcessRow)y).TotalSeconds;
+        int result = secX.CompareTo(secY);
+        return SortDirection == ListSortDirection.Ascending ? result : -result;
+    }
 }

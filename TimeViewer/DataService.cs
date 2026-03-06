@@ -13,7 +13,12 @@ public class DataService
     private List<AppsTable> _cachedApps = new();
     private List<TagTable> _cachedTags = new();
     private readonly SemaphoreSlim _dataGate = new(1, 1);
+    private static readonly string TagsPath = Path.Combine(FileSystem.AppDataDirectory, "tags.csv");
 
+    public List<TagTable> CachedTags => _cachedTags;
+
+
+    // Create _cachedApps | 1. Read Tags, 2. Read Time Table from ManicTime, 3. Merge them by Process Name
     public async Task<List<AppsTable>> GetMergedDataAsync(bool forceReload)
     {
         await _dataGate.WaitAsync();
@@ -36,7 +41,7 @@ public class DataService
         }
     }
 
-    private static readonly string TagsPath = Path.Combine(FileSystem.AppDataDirectory, "tags.csv");
+    // 1. Read Tags
     public static async Task<List<TagTable>> GetTagTable()
     {
         Directory.CreateDirectory(FileSystem.AppDataDirectory);
@@ -51,6 +56,7 @@ public class DataService
         return csv.GetRecords<TagTable>().ToList();
     }
 
+    // 2. Read Time Table from ManicTime
     private static async Task<List<AppsTable>> ExportTimeTableAsync()
     {
         // Running mtc to export CSV to tempCsvPath
@@ -76,6 +82,7 @@ public class DataService
         return csv.GetRecords<AppsTable>().ToList();
     }
 
+    // 3. Merge Tags into TimeTable by Process Name
     private static List<AppsTable> MergeAppTags(List<AppsTable> apps, List<TagTable> tags)
     {
         // Merging Tags into Applications by Process Name
@@ -95,6 +102,17 @@ public class DataService
         return merged.ToList();
     }
 
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Allow User to Edit Tags and Save Back to CSV
+    public async Task SaveTagTableAsync(List<TagTable> tags)
+    {
+        using var writer = new StreamWriter(TagsPath);
+        using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+        await csv.WriteRecordsAsync(tags);
+    }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Util
     public static void PrintTable(List<AppsTable> table)
     {
         foreach (var row in table)
