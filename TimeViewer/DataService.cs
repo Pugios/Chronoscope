@@ -104,11 +104,20 @@ public class DataService
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Allow User to Edit Tags and Save Back to CSV
-    public async Task SaveTagTableAsync(List<TagTable> tags)
+    public async Task ApplyTagChangesAsync(List<TagTable> updates)
     {
+        foreach (var update in updates)
+        {
+            var existing = _cachedTags.FirstOrDefault(t => t.Process == update.Process);
+            if (existing is not null)
+                existing.Tag = update.Tag;
+            else
+                _cachedTags.Add(new TagTable { Process = update.Process, Tag = update.Tag });
+        }
+
         using var writer = new StreamWriter(TagsPath);
         using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-        await csv.WriteRecordsAsync(tags);
+        await csv.WriteRecordsAsync(_cachedTags);
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -223,7 +223,7 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
                 //float value = 20f + ((float)i + 1f) / processCount * 80f;
                 // Longest Process = Brightest Color
                 float value = 20f + (((processCount - (float)i) / processCount) * 80f);
-                string procColor = _settingsService.ChangeColor(tagColor, value);
+                string procColor = _settingsService.varyColor(tagColor, value);
 
                 pieDataList.Add(new PieData
                 {

@@ -58,7 +58,7 @@ public class SettingsService
     }
 
     // Change Value of a color to a specified amount
-    public string ChangeColor(string hex, float value)
+    public string varyColor(string hex, float value)
     {
         var color = SKColor.Parse(hex);
         color.ToHsv(out float h, out float s, out float v);
@@ -70,5 +70,12 @@ public class SettingsService
     public void SetTagColor(string tag, string color)
     {
         _settings.TagColors[tag] = color;
+        _ = SaveAsync();
+    }
+
+    public void DeleteTagColor(string tag)
+    {
+        _settings.TagColors.Remove(tag);
+        _ = SaveAsync();
     }
 }

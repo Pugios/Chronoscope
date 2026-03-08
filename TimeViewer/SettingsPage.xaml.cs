@@ -11,11 +11,11 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Loading Settings
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	private readonly SettingsService _settingsService;
+    private readonly SettingsService _settingsService;
     private readonly DataService _dataService;
 
     public SettingsPage(SettingsService settingsService, DataService dataService)
-	{
+    {
         InitializeComponent();
         BindingContext = this;
         _settingsService = settingsService;
@@ -25,8 +25,15 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        LoadTags();
+        LoadColors();
         await LoadProcessesAsync();
+        LoadAvailableTags();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        CleanupColors();
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -44,7 +51,7 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
         }
     }
 
-    private void LoadTags()
+    private void LoadColors()
     {
         TagColors = _settingsService.TagColors.Select(a =>
         {
@@ -81,6 +88,19 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
         }
     }
 
+    private void CleanupColors()
+    {
+        string[] exceptions = ["Remaining", "No Clue"];
+        var usedTags = _dataService.CachedTags.Select(t => t.Tag).Distinct();
+
+        var tagsToRemove = TagColors
+            .Select(c => c.Tag)
+            .Except(usedTags)
+            .Except(exceptions);
+
+        foreach (var tag in tagsToRemove)
+            _settingsService.DeleteTagColor(tag);
+    }
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Process Tag Table
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -89,9 +109,10 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
     public ProcessRow[] ProcessRows
     {
         get => _processRows;
-        set { 
-            _processRows = value; 
-            OnPropertyChanged(nameof(ProcessRows)); 
+        set
+        {
+            _processRows = value;
+            OnPropertyChanged(nameof(ProcessRows));
         }
     }
 
@@ -121,14 +142,94 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
             .ToArray();
     }
 
+    private string[] _availableTags = [];
+    public string[] AvailableTags
+    {
+        get => _availableTags;
+        set
+        {
+            _availableTags = value;
+            OnPropertyChanged(nameof(AvailableTags));
+        }
+    }
+    private void LoadAvailableTags()
+    {
+        AvailableTags = _dataService.CachedTags
+            .Select(t => t.Tag)
+            .Distinct()
+            .OrderBy(t => t)
+            .ToArray();
+    }
+
+    // Assign Tag to Selected Processes
+    private string _selectedAssignTag;
+    public string SelectedAssignTag
+    {
+        get => _selectedAssignTag;
+        set
+        {
+            _selectedAssignTag = value;
+            OnPropertyChanged(nameof(SelectedAssignTag));
+        }
+    }
+    private readonly List<TagTable> _pendingTagChanges = new();
+
+    private void OnAssignTagClicked(object? sender, EventArgs e)
+    {
+        if (string.IsNullOrEmpty(SelectedAssignTag)) return;
+
+        foreach (var selectedRow in ProcessDataGrid.SelectedRows)
+        {
+            if (selectedRow is ProcessRow row)
+            {
+                row.Tag = SelectedAssignTag;
+                _pendingTagChanges.Add(new TagTable { Process = row.Process, Tag = SelectedAssignTag });
+            }
+        }
+    }
+
+    // Assign new Tag to Selected Processes
+    private void OnCreateAndAssignClicked(object? sender, EventArgs e)
+    {
+        var newTag = NewTagEntry.Text?.Trim();
+        if (string.IsNullOrEmpty(newTag)) return;
+
+        // Assign to selected rows same as before
+        foreach (var selectedRow in ProcessDataGrid.SelectedRows)
+        {
+            if (selectedRow is ProcessRow row)
+            {
+                row.Tag = newTag;
+                _pendingTagChanges.Add(new TagTable { Process = row.Process, Tag = newTag });
+            }
+        }
+
+        NewTagEntry.Text = string.Empty;
+
+        // Update Available Tags List
+        AvailableTags = AvailableTags.Append(newTag).ToArray();
+
+        // Update Color Collection
+        string newColor= _settingsService.GetTagColor(newTag);
+        Color newMAUIColor = SKColor.Parse(newColor).ToMauiColor();
+        TagColors = TagColors.Append(new TagColorRow {Color = newMAUIColor, Tag = newTag}).ToArray();
+    }
+
     // Save
     private async void OnSaveClicked(object? sender, EventArgs e)
     {
+        // Save Color Changes
         foreach (var row in TagColors)
         {
             _settingsService.SetTagColor(row.Tag, row.Color.ToHex());
         }
         await _settingsService.SaveAsync();
+
+        // Save Tag Changes
+        if (_pendingTagChanges.Any())
+        {
+            await _dataService.ApplyTagChangesAsync(_pendingTagChanges);
+        }
         await Shell.Current.GoToAsync("..");
     }
 }
@@ -178,15 +279,29 @@ public class TagColorRow : INotifyPropertyChanged
 
 // ProcessRow
 // ====================================================
-public class ProcessRow
+public class ProcessRow : INotifyPropertyChanged
 {
     public string Process { get; set; }
-    public string Tag { get; set; }
+    private string _tag;
+    public string Tag
+    {
+        get => _tag;
+        set
+        {
+            if (_tag == value) return;
+            _tag = value;
+            OnPropertyChanged(nameof(Tag));
+        }
+    }
     public string TotalTime { get; set; }
     public string LastUsed { get; set; }
     // For Sorting
     public double TotalSeconds { get; set; }
     public DateTime LastUsedDate { get; set; }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged(string name) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
