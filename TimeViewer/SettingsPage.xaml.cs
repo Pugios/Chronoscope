@@ -1,8 +1,10 @@
+using CommunityToolkit.Maui.Alerts;
 using Maui.ColorPicker;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using Syncfusion.Maui.Data;
 using System.ComponentModel;
+using System.Diagnostics;
 
 namespace TimeViewer;
 
@@ -90,8 +92,8 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
 
     private void CleanupColors()
     {
-        string[] exceptions = ["Remaining", "No Clue"];
         var usedTags = _dataService.CachedTags.Select(t => t.Tag).Distinct();
+        string[] exceptions = ["Remaining", "No Clue"];
 
         var tagsToRemove = TagColors
             .Select(c => c.Tag)
@@ -118,9 +120,9 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
 
     private async Task LoadProcessesAsync()
     {
-        var apps = await _dataService.GetMergedDataAsync(forceReload: false);
+        List<AppsTagsTable> data = await _dataService.GetMergedDataAsync(forceReload: false);
 
-        ProcessRows = apps
+        ProcessRows = data
             .GroupBy(a => a.Process)
             .Select(g =>
             {
@@ -128,6 +130,7 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
                 return new ProcessRow
                 {
                     Process = g.Key,
+                    RootProcess = g.First().OriginalProcess,
                     Tag = g.First().Tag,
                     TotalTime = totalTime.Days > 0
                             ? totalTime.ToString(@"d\d\ hh\:mm")
@@ -142,6 +145,10 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
             .ToArray();
     }
 
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Assign Tag to Processes
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Picker shows avaialable Tags
     private string[] _availableTags = [];
     public string[] AvailableTags
     {
@@ -161,61 +168,86 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
             .ToArray();
     }
 
-    // Assign Tag to Selected Processes
-    private string _selectedAssignTag;
-    public string SelectedAssignTag
+    // Selected Tag within Picker
+    private string _selectedTag;
+    public string SelectedTag
     {
-        get => _selectedAssignTag;
+        get => _selectedTag;
         set
         {
-            _selectedAssignTag = value;
-            OnPropertyChanged(nameof(SelectedAssignTag));
+            _selectedTag = value;
+            OnPropertyChanged(nameof(SelectedTag));
         }
     }
-    private readonly List<TagTable> _pendingTagChanges = new();
 
-    private void OnAssignTagClicked(object? sender, EventArgs e)
+    private string _newTag;
+    public string NewTag
     {
-        if (string.IsNullOrEmpty(SelectedAssignTag)) return;
+        get => _newTag;
+        set
+        {
+            _newTag = value;
+            OnPropertyChanged(nameof(NewTag));
+        }
+    }
+
+    private readonly List<TagsTable> _pendingTagChanges = new();
+
+    // Assign Tag to selected Processes
+    private async void OnAssignTagClicked(object? sender, EventArgs e)
+    {
+        var tagToUse = string.IsNullOrWhiteSpace(_newTag) ? _selectedTag : _newTag;
+
+        if (string.IsNullOrEmpty(tagToUse)) return;
 
         foreach (var selectedRow in ProcessDataGrid.SelectedRows)
         {
-            if (selectedRow is ProcessRow row)
+            if (selectedRow is not ProcessRow row) continue;
+
+            if (row.Process != row.RootProcess)
             {
-                row.Tag = SelectedAssignTag;
-                _pendingTagChanges.Add(new TagTable { Process = row.Process, Tag = SelectedAssignTag });
+                await DisplayAlertAsync($"Not changing Tag for {row.Process}", $"Tags for {row.RootProcess} Subprocess are managed via 'Configure Subprocesses'", "Ok");
+
+                continue;
             }
+
+            row.Tag = tagToUse;
+            _pendingTagChanges.Add(new TagsTable { Process = row.Process, Tag = tagToUse });
         }
-    }
 
-    // Assign new Tag to Selected Processes
-    private void OnCreateAndAssignClicked(object? sender, EventArgs e)
-    {
-        var newTag = NewTagEntry.Text?.Trim();
-        if (string.IsNullOrEmpty(newTag)) return;
-
-        // Assign to selected rows same as before
-        foreach (var selectedRow in ProcessDataGrid.SelectedRows)
+        // If it is a new Tag
+        if (!AvailableTags.Contains(tagToUse))
         {
-            if (selectedRow is ProcessRow row)
-            {
-                row.Tag = newTag;
-                _pendingTagChanges.Add(new TagTable { Process = row.Process, Tag = newTag });
-            }
+            // Update Available Tags List
+            AvailableTags = AvailableTags.Append(tagToUse).ToArray();
+
+            // Update Color Collection
+            string newColor = _settingsService.GetTagColor(tagToUse);
+            Color newMAUIColor = SKColor.Parse(newColor).ToMauiColor();
+            TagColors = TagColors.Append(new TagColorRow { Color = newMAUIColor, Tag = tagToUse }).ToArray();
         }
 
-        NewTagEntry.Text = string.Empty;
-
-        // Update Available Tags List
-        AvailableTags = AvailableTags.Append(newTag).ToArray();
-
-        // Update Color Collection
-        string newColor= _settingsService.GetTagColor(newTag);
-        Color newMAUIColor = SKColor.Parse(newColor).ToMauiColor();
-        TagColors = TagColors.Append(new TagColorRow {Color = newMAUIColor, Tag = newTag}).ToArray();
+        NewTag = "";
     }
 
+    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Turn Process into Explorer Process
+    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    private async void OnConfigSubprocessClicked(object? sender, EventArgs e)
+    {
+        if (ProcessDataGrid.SelectedRows.Count != 1)
+            return;
+
+        if (ProcessDataGrid.SelectedRows[0] is not ProcessRow row)
+            return;
+
+        await Shell.Current.GoToAsync(
+            $"{nameof(ExplorerSettingsPage)}?process={Uri.EscapeDataString(row.RootProcess)}");
+    }
+
+    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Save
+    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     private async void OnSaveClicked(object? sender, EventArgs e)
     {
         // Save Color Changes
@@ -282,6 +314,7 @@ public class TagColorRow : INotifyPropertyChanged
 public class ProcessRow : INotifyPropertyChanged
 {
     public string Process { get; set; }
+    public string RootProcess { get; set; } 
     private string _tag;
     public string Tag
     {

@@ -11,7 +11,7 @@ public class AppSettings
 }
 
 // Data Services
-public class TagTable
+public class TagsTable
 {
     public string Process { get; set; }
     public string Tag { get; set; }
@@ -25,19 +25,70 @@ public class AppsTable
     public string Duration { get; set; }
     public string Process { get; set; }
 
-    [Ignore]
-    public string Tag { get; set; }
-
-    public static string ToString(AppsTable x)
+    public string ToString(AppsTable x)
     {
-        string Message = $"{x.Name} | {x.Start} | {x.End} | {x.Duration} | {x.Process}";
-        if (x.Tag is not null)
-        {
-            Message += $" | {x.Tag}";
-        }
-        return Message;
+        return $"{x.Name} | {x.Start} | {x.End} | {x.Duration} | {x.Process}";
     }
 }
+
+public class AppsTagsTable
+{
+    public string Name { get; set; }
+    public DateTime Start { get; set; }
+    public DateTime End { get; set; }
+    public string Duration { get; set; }
+    public string Process { get; set; }
+    public string OriginalProcess { get; set; }
+    public string Tag { get; set; }
+
+    public string ToString(AppsTagsTable x)
+    {
+        return $"{x.Name} | {x.Start} | {x.End} | {x.Duration} | {x.Process} | {x.OriginalProcess} | {x.Tag}";
+    }
+}
+
+public class DocumentsTable
+{
+    public string Name { get; set; }
+    public DateTime Start { get; set; }
+    public DateTime End { get; set; }
+    public string Duration { get; set; }
+    public string Domain { get; set; }
+}
+
+public class AppsTagsDocumentsTable
+{
+    public string Name { get; set; }
+    public string DocName { get; set; }
+    public string Domain { get; set; }
+    public DateTime Start { get; set; }
+    public DateTime End { get; set; }
+    public string Duration { get; set; }
+    public string Process { get; set; }
+    public string OriginalProcess { get; set; }
+    public string Tag { get; set; }
+
+}
+
+// Explorer Processes Rules
+public class ExplorerRule
+{
+    public string Process { get; set; }
+    public string Tag { get; set; }
+    public string Column { get; set; }  // "Name", "DocName", or "Domain"
+    public string MatchType { get; set; }  // "Prefix" or "Suffix"
+    public string Pattern { get; set; } // "github.com", "C:/Users/Documents/ProjectName", etc.
+    public int Order { get; set; } // Order of rule application
+
+    public bool Equals(ExplorerRule other) =>
+        Process == other.Process &&
+        Tag == other.Tag &&
+        Column == other.Column &&
+        MatchType == other.MatchType &&
+        Pattern == other.Pattern &&
+        Order == other.Order;
+}
+
 
 // Graph
 public class PieData

@@ -155,13 +155,13 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    private Task LoadDayNestedPieAsync(List<AppsTable> apps, DateTime day)
+    private Task LoadDayNestedPieAsync(List<AppsTagsTable> data, DateTime day)
     {
         _currentDay = day;
         DisplayDay = day.ToString("ddd dd-MM-yyyy");
 
         // If no data or no data for the day, clear the graph and legend
-        if (!apps.Any() || !apps.Select(a => a.Start.Date).Contains(day))
+        if (!data.Any() || !data.Select(a => a.Start.Date).Contains(day))
         {
             PieDataCollection = [];
             LegendItems = [];
@@ -169,7 +169,7 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
         }
 
         // Build relevant Apps Table! Of the day, Grouped by Tag and by Process, Ordered by Duration
-        var nested = apps
+        var nested = data
             .Where(a => a.Start.Date == day && TimeSpan.Parse(a.Duration).TotalSeconds > 30)
             .GroupBy(a => a.Tag)
             .Select(a => new

@@ -14,146 +14,145 @@
         <local:TotalSecondsSortComparer
             x:Key="TotalSecondsComparer" />
     </ContentPage.Resources>
+    <ScrollView>
+        <VerticalStackLayout
+            Spacing="20"
+            Padding="20">
+            <!-- Color Picker -->
+            <CollectionView
+                ItemsSource="{Binding TagColors}">
+                <CollectionView.ItemsLayout>
+                    <LinearItemsLayout
+                        Orientation="Vertical" />
+                </CollectionView.ItemsLayout>
 
-    <VerticalStackLayout
-        Spacing="20"
-        Padding="20">
-        <!-- Color Picker -->
-        <CollectionView
-            ItemsSource="{Binding TagColors}">
-            <CollectionView.ItemsLayout>
-                <LinearItemsLayout
-                    Orientation="Vertical" />
-            </CollectionView.ItemsLayout>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate
+                        x:DataType="local:TagColorRow">
+                        <HorizontalStackLayout
+                            Spacing="12"
+                            Padding="8,4">
 
-            <CollectionView.ItemTemplate>
-                <DataTemplate
-                    x:DataType="local:TagColorRow">
-                    <HorizontalStackLayout
-                        Spacing="12"
-                        Padding="8,4">
+                            <Label
+                                Text="{Binding Tag}"
+                                VerticalOptions="Center"
+                                WidthRequest="120" />
 
-                        <Label
-                            Text="{Binding Tag}"
-                            VerticalOptions="Center"
-                            WidthRequest="120" />
+                            <VerticalStackLayout>
 
-                        <VerticalStackLayout>
+                                <BoxView
+                                    Color="{Binding Color}"
+                                    WidthRequest="40"
+                                    HeightRequest="40"
+                                    CornerRadius="8"
+                                    VerticalOptions="Center">
+                                    <BoxView.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Tapped="OnColorTapped" />
+                                    </BoxView.GestureRecognizers>
+                                </BoxView>
 
-                            <BoxView
-                                Color="{Binding Color}"
-                                WidthRequest="40"
-                                HeightRequest="40"
-                                CornerRadius="8"
-                                VerticalOptions="Center">
-                                <BoxView.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Tapped="OnColorTapped" />
-                                </BoxView.GestureRecognizers>
-                            </BoxView>
+                                <Border
+                                    IsVisible="{Binding IsPickerVisible}"
+                                    Stroke="LightGray"
+                                    StrokeThickness="1"
+                                    BackgroundColor="White"
+                                    Padding="8"
+                                    TranslationY="4">
+                                    <controls:ColorPicker
+                                        x:Name="ColorPicker"
+                                        WidthRequest="280"
+                                        HeightRequest="140"
+                                        ColorSpectrumStyle="TintToHueToShadeStyle"
+                                        PickedColorChanged="ColorPicker_PickedColorChanged" />
+                                </Border>
+                            </VerticalStackLayout>
 
-                            <Border
-                                IsVisible="{Binding IsPickerVisible}"
-                                Stroke="LightGray"
-                                StrokeThickness="1"
-                                BackgroundColor="White"
-                                Padding="8"
-                                TranslationY="4">
-                                <controls:ColorPicker
-                                    x:Name="ColorPicker"
-                                    WidthRequest="280"
-                                    HeightRequest="140"
-                                    ColorSpectrumStyle="TintToHueToShadeStyle"
-                                    PickedColorChanged="ColorPicker_PickedColorChanged" />
-                            </Border>
-                        </VerticalStackLayout>
+                        </HorizontalStackLayout>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
 
-                    </HorizontalStackLayout>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
-        
-        <!-- Assign Tag to selected Rows -->
-        <HorizontalStackLayout
-            Spacing="10"
-            VerticalOptions="Center">
-            <Label
-                Text="Apply"
-                VerticalOptions="Center" />
-            <Picker
-                ItemsSource="{Binding AvailableTags}"
-                SelectedItem="{Binding SelectedAssignTag}"
-                WidthRequest="150"
-                VerticalOptions="Center" />
-            <Label
-                Text="to selected rows"
-                VerticalOptions="Center" />
+            <!-- Assign Tag to selected Rows -->
+            <HorizontalStackLayout
+                Spacing="10"
+                VerticalOptions="Center">
+                <Label
+                    Text="Apply"
+                    VerticalOptions="Center" />
+                <Picker
+                    ItemsSource="{Binding AvailableTags}"
+                    SelectedItem="{Binding SelectedTag}"
+                    Title="Select tag..."
+                    WidthRequest="150" />
+                <Entry
+                    Placeholder="Or new tag..."
+                    Text="{Binding NewTag}"
+                    WidthRequest="150" />
+                <Label
+                    Text="to selected rows"
+                    VerticalOptions="Center" />
+                <Button
+                    Text="Assign"
+                    Clicked="OnAssignTagClicked" />
+            </HorizontalStackLayout>
+
+            <!-- Make Explorer App -->
+            <HorizontalStackLayout
+                Spacing="10"
+                VerticalOptions="Center">
+                <Button
+                    Text="Configure Subprocesses"
+                    Clicked="OnConfigSubprocessClicked" />
+            </HorizontalStackLayout>
+
+            <!-- Process Tag Table -->
+            <sf:SfDataGrid
+                x:Name="ProcessDataGrid"
+                ItemsSource="{Binding ProcessRows}"
+                AutoGenerateColumnsMode="None"
+                HeightRequest="400"
+                DefaultStyle="{StaticResource DefaultDataGridStyle}"
+                ColumnWidthMode="Fill"
+                SortingMode="Single"
+                SelectionUnit="Row"
+                SelectionMode="Extended">
+
+                <sf:SfDataGrid.SortComparers>
+                    <data:SortComparer
+                        Comparer="{StaticResource DateComparer}"
+                        PropertyName="LastUsed" />
+                    <data:SortComparer
+                        Comparer="{StaticResource TotalSecondsComparer}"
+                        PropertyName="TotalTime" />
+                </sf:SfDataGrid.SortComparers>
+
+                <sf:SfDataGrid.Columns>
+                    <sf:DataGridTextColumn
+                        HeaderText="Process"
+                        MappingName="Process"
+                        Width="200"
+                        AllowFiltering="True" />
+                    <sf:DataGridTextColumn
+                        HeaderText="Tag"
+                        MappingName="Tag"
+                        Width="120"
+                        AllowFiltering="True" />
+                    <sf:DataGridTextColumn
+                        HeaderText="Total Time"
+                        MappingName="TotalTime"
+                        Width="100" />
+                    <sf:DataGridTextColumn
+                        HeaderText="Last Used"
+                        MappingName="LastUsed"
+                        Width="160" />
+                </sf:SfDataGrid.Columns>
+            </sf:SfDataGrid>
+
+            <!-- Save Button -->
             <Button
-                Text="Assign"
-                Clicked="OnAssignTagClicked" />
-        </HorizontalStackLayout>
-        
-        <!-- New Tag Creation -->
-        <HorizontalStackLayout
-            Spacing="10"
-            VerticalOptions="Center">
-            <Label
-                Text="New tag:"
-                VerticalOptions="Center" />
-            <Entry
-                x:Name="NewTagEntry"
-                Placeholder="Tag name..."
-                WidthRequest="150"
-                VerticalOptions="Center" />
-            <Button
-                Text="Create &amp; Assign"
-                Clicked="OnCreateAndAssignClicked" />
-        </HorizontalStackLayout>
-
-        <!-- Process Tag Table -->
-        <sf:SfDataGrid
-            x:Name="ProcessDataGrid"
-            ItemsSource="{Binding ProcessRows}"
-            AutoGenerateColumnsMode="None"
-            HeightRequest="400"
-            DefaultStyle="{StaticResource DefaultDataGridStyle}"
-            SortingMode="Single"
-            SelectionUnit="Row"
-            SelectionMode="Extended">
-
-            <sf:SfDataGrid.SortComparers>
-                <data:SortComparer
-                    Comparer="{StaticResource DateComparer}"
-                    PropertyName="LastUsed" />
-                <data:SortComparer
-                    Comparer="{StaticResource TotalSecondsComparer}"
-                    PropertyName="TotalTime" />
-            </sf:SfDataGrid.SortComparers>
-
-            <sf:SfDataGrid.Columns>
-                <sf:DataGridTextColumn
-                    HeaderText="Process"
-                    MappingName="Process"
-                    Width="200" />
-                <sf:DataGridTextColumn
-                    HeaderText="Tag"
-                    MappingName="Tag"
-                    Width="120"
-                    AllowFiltering="True" />
-                <sf:DataGridTextColumn
-                    HeaderText="Total Time"
-                    MappingName="TotalTime"
-                    Width="100" />
-                <sf:DataGridTextColumn
-                    HeaderText="Last Used"
-                    MappingName="LastUsed"
-                    Width="160" />
-            </sf:SfDataGrid.Columns>
-        </sf:SfDataGrid>
-
-        <!-- Save Button -->
-        <Button
-            Text="Save"
-            Clicked="OnSaveClicked" />
-    </VerticalStackLayout>
+                Text="Save"
+                Clicked="OnSaveClicked" />
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>

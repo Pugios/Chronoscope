@@ -1,7 +1,7 @@
-﻿using LiveChartsCore.SkiaSharpView.Maui;
+﻿using CommunityToolkit.Maui;
+using LiveChartsCore.SkiaSharpView.Maui;
 using Microsoft.Extensions.Logging;
 using SkiaSharp.Views.Maui.Controls.Hosting;
-using TimeViewer.Platforms;
 using Syncfusion.Maui.Core.Hosting;
 
 namespace TimeViewer
@@ -13,6 +13,7 @@ namespace TimeViewer
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
+                .UseMauiCommunityToolkit()
                 .UseSkiaSharp()
                 .UseLiveCharts()
                 .ConfigureFonts(fonts =>
@@ -23,6 +24,7 @@ namespace TimeViewer
 
             builder.Services.AddTransient<MainPage>();
             builder.Services.AddTransient<SettingsPage>();
+            builder.Services.AddTransient<ExplorerSettingsPage>();
             builder.Services.AddSingleton<DataService>();
             builder.Services.AddSingleton<SettingsService>();
 

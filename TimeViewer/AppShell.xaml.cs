@@ -1,4 +1,4 @@
-﻿using TimeViewer.Platforms;
+﻿using TimeViewer;
 
 namespace TimeViewer
 {
@@ -8,6 +8,7 @@ namespace TimeViewer
         {
             InitializeComponent();
             Routing.RegisterRoute(nameof(SettingsPage), typeof(SettingsPage));
+            Routing.RegisterRoute(nameof(ExplorerSettingsPage), typeof(ExplorerSettingsPage));
         }
     }
 }
