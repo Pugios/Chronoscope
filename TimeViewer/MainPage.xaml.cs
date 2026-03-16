@@ -4,7 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 
 namespace TimeViewer;
-public partial class MainPage : ContentPage, INotifyPropertyChanged
+public partial class MainPage : ContentPage
 {
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -45,6 +45,7 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
         base.OnAppearing();
         await _settingsService.LoadAsync();
         await RefreshAsync(forceReload: true);
+        _refreshTimer.Start();
     }
 
     private bool _isRefreshing;
@@ -56,6 +57,10 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
         {
             var apps = await _dataService.GetMergedDataAsync(forceReload);
             await LoadDayNestedPieAsync(apps, _currentDay);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await DisplayAlertAsync("ManicTime Error", ex.Message, "OK");
         }
         finally
         {
@@ -223,7 +228,7 @@ public partial class MainPage : ContentPage, INotifyPropertyChanged
                 //float value = 20f + ((float)i + 1f) / processCount * 80f;
                 // Longest Process = Brightest Color
                 float value = 20f + (((processCount - (float)i) / processCount) * 80f);
-                string procColor = _settingsService.varyColor(tagColor, value);
+                string procColor = _settingsService.VaryColor(tagColor, value);
 
                 pieDataList.Add(new PieData
                 {

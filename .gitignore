@@ -1,9 +1,3 @@
-data/*
-graphs/*
-*.jpg
-secrets.json
-Secrets.cs
-
 # Created by https://gitignore.org
 # Dotnet.gitignore
 
@@ -67,3 +61,12 @@ nunit-*.xml
 
 # Visual Studio
 .vs/
+
+# Own Ignores
+
+data/*
+graphs/*
+*.jpg
+secrets.json
+Secrets.cs
+ClaudeCodeContext.md

@@ -8,7 +8,7 @@ using System.Diagnostics;
 
 namespace TimeViewer;
 
-public partial class SettingsPage : ContentPage, INotifyPropertyChanged
+public partial class SettingsPage : ContentPage
 {
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Loading Settings
@@ -30,6 +30,7 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
         LoadColors();
         await LoadProcessesAsync();
         LoadAvailableTags();
+        MtcExePath = _settingsService.MtcExePath;
     }
 
     protected override void OnDisappearing()
@@ -246,10 +247,43 @@ public partial class SettingsPage : ContentPage, INotifyPropertyChanged
     }
 
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // ManicTime Path
+    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    private string _mtcExePath;
+    public string MtcExePath
+    {
+        get => _mtcExePath;
+        set
+        {
+            _mtcExePath = value;
+            OnPropertyChanged(nameof(MtcExePath));
+        }
+    }
+
+    private async void OnBrowseMtcClicked(object? sender, EventArgs e)
+    {
+        var result = await FilePicker.PickAsync(new PickOptions
+        {
+            PickerTitle = "Select mtc.exe",
+            FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+            {
+                { DevicePlatform.WinUI, [".exe"] }
+            })
+        });
+
+        if (result is not null)
+            MtcExePath = result.FullPath;
+    }
+
+    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Save
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     private async void OnSaveClicked(object? sender, EventArgs e)
     {
+        // Save mtc.exe Path
+        _settingsService.MtcExePath = MtcExePath;
+
         // Save Color Changes
         foreach (var row in TagColors)
         {

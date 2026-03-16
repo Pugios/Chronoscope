@@ -8,6 +8,7 @@ namespace TimeViewer;
 public class AppSettings
 {
     public Dictionary<string, string> TagColors { get; set; } = new();
+    public string MtcExePath { get; set; } = @"C:\Program Files\ManicTime\mtc.exe";
 }
 
 // Data Services
@@ -25,10 +26,7 @@ public class AppsTable
     public string Duration { get; set; }
     public string Process { get; set; }
 
-    public string ToString(AppsTable x)
-    {
-        return $"{x.Name} | {x.Start} | {x.End} | {x.Duration} | {x.Process}";
-    }
+    public override string ToString() => $"{Name} | {Start} | {End} | {Duration} | {Process}";
 }
 
 public class AppsTagsTable
@@ -41,10 +39,7 @@ public class AppsTagsTable
     public string OriginalProcess { get; set; }
     public string Tag { get; set; }
 
-    public string ToString(AppsTagsTable x)
-    {
-        return $"{x.Name} | {x.Start} | {x.End} | {x.Duration} | {x.Process} | {x.OriginalProcess} | {x.Tag}";
-    }
+    public override string ToString() => $"{Name} | {Start} | {End} | {Duration} | {Process} | {OriginalProcess} | {Tag}";
 }
 
 public class DocumentsTable
@@ -79,14 +74,6 @@ public class ExplorerRule
     public string MatchType { get; set; }  // "Prefix" or "Suffix"
     public string Pattern { get; set; } // "github.com", "C:/Users/Documents/ProjectName", etc.
     public int Order { get; set; } // Order of rule application
-
-    public bool Equals(ExplorerRule other) =>
-        Process == other.Process &&
-        Tag == other.Tag &&
-        Column == other.Column &&
-        MatchType == other.MatchType &&
-        Pattern == other.Pattern &&
-        Order == other.Order;
 }
 
 

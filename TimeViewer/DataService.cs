@@ -14,6 +14,12 @@ public class DataService
     private readonly SemaphoreSlim _dataGate = new(1, 1);
     private static readonly string TagsPath = Path.Combine(FileSystem.AppDataDirectory, "tags.csv");
     private static readonly string ExplorerPath = Path.Combine(FileSystem.AppDataDirectory, "explorer-processes.csv");
+    private readonly SettingsService _settingsService;
+
+    public DataService(SettingsService settingsService)
+    {
+        _settingsService = settingsService;
+    }
 
 
     private List<TagsTable> _cachedTags = new();
@@ -70,7 +76,7 @@ public class DataService
     }
 
     // 1. Read Tags
-    public static async Task<List<TagsTable>> GetTagTableAsync()
+    private static async Task<List<TagsTable>> GetTagTableAsync()
     {
         Directory.CreateDirectory(FileSystem.AppDataDirectory);
         if (!File.Exists(TagsPath))
@@ -84,29 +90,35 @@ public class DataService
     }
 
     // 2. Read Time Table from ManicTime
-    private static async Task<List<AppsTable>> ExportTimeTableAsync()
+    private async Task<List<AppsTable>> ExportTimeTableAsync()
     {
-        // Running mtc to export CSV to tempCsvPath
         string tempCsvPath = Path.Combine(FileSystem.CacheDirectory, "manictime-export.csv");
 
-        using Process process = new Process
+        try
         {
-            StartInfo = new ProcessStartInfo
+            using Process process = new Process
             {
-                WindowStyle = ProcessWindowStyle.Hidden,
-                FileName = @"C:\Program Files\ManicTime\mtc.exe",
-                Arguments = $"export ManicTime/Applications \"{tempCsvPath}\"",
-                CreateNoWindow = true
-            }
-        };
+                StartInfo = new ProcessStartInfo
+                {
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    FileName = _settingsService.MtcExePath,
+                    Arguments = $"export ManicTime/Applications \"{tempCsvPath}\"",
+                    CreateNoWindow = true
+                }
+            };
 
-        process.Start();
-        await process.WaitForExitAsync().ConfigureAwait(false);
+            process.Start();
+            await process.WaitForExitAsync().ConfigureAwait(false);
 
-        // Reading Exported Applications Table
-        using var reader = new StreamReader(tempCsvPath);
-        using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-        return csv.GetRecords<AppsTable>().ToList();
+            using var reader = new StreamReader(tempCsvPath);
+            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            return csv.GetRecords<AppsTable>().ToList();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Could not export data from ManicTime.\nCheck the mtc.exe path in Settings:\n{_settingsService.MtcExePath}", ex);
+        }
     }
 
     // 3. Merge Tags into TimeTable by Process Name
@@ -146,35 +158,45 @@ public class DataService
         using var writer = new StreamWriter(TagsPath);
         using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
         await csv.WriteRecordsAsync(_cachedTags);
+
+        // Invalidate derived caches so next GetMergedDataAsync reloads fresh data
+        _cachedAppsTags = new();
+        _cachedAppsTagsDocuments = new();
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Explorer Processes
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // 1. Read Documents Table from ManicTime
-    public static async Task<List<DocumentsTable>> ExportDocumentsTableAsync()
+    private async Task<List<DocumentsTable>> ExportDocumentsTableAsync()
     {
-        // Running mtc to export CSV to tempCsvPath
         string tempCsvPath = Path.Combine(FileSystem.CacheDirectory, "manictime-documents-export.csv");
 
-        using Process process = new Process
+        try
         {
-            StartInfo = new ProcessStartInfo
+            using Process process = new Process
             {
-                WindowStyle = ProcessWindowStyle.Hidden,
-                FileName = @"C:\Program Files\ManicTime\mtc.exe",
-                Arguments = $"export ManicTime/Documents \"{tempCsvPath}\"",
-                CreateNoWindow = true
-            }
-        };
+                StartInfo = new ProcessStartInfo
+                {
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    FileName = _settingsService.MtcExePath,
+                    Arguments = $"export ManicTime/Documents \"{tempCsvPath}\"",
+                    CreateNoWindow = true
+                }
+            };
 
-        process.Start();
-        await process.WaitForExitAsync().ConfigureAwait(false);
+            process.Start();
+            await process.WaitForExitAsync().ConfigureAwait(false);
 
-        // Reading Exported Applications Table
-        using var reader = new StreamReader(tempCsvPath);
-        using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-        return csv.GetRecords<DocumentsTable>().ToList();
+            using var reader = new StreamReader(tempCsvPath);
+            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            return csv.GetRecords<DocumentsTable>().ToList();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Could not export documents from ManicTime.\nCheck the mtc.exe path in Settings:\n{_settingsService.MtcExePath}", ex);
+        }
     }
 
     // 2. Merge Documents into Applications/Tags by Start and End Time
@@ -202,7 +224,7 @@ public class DataService
     }
 
     // 3. Read Explorer Process Rules
-    public static async Task<List<ExplorerRule>> GetExplorerAsync()
+    private static async Task<List<ExplorerRule>> GetExplorerAsync()
     {
         Directory.CreateDirectory(FileSystem.AppDataDirectory);
         if (!File.Exists(ExplorerPath))

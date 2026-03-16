@@ -11,7 +11,7 @@ namespace TimeViewer;
 public class SettingsService
 {
     private readonly string _filePath = Path.Combine(FileSystem.AppDataDirectory, "settings.json");
-
+    private Random random = new Random();
     private AppSettings _settings = new();
 
     public async Task LoadAsync()
@@ -32,7 +32,19 @@ public class SettingsService
         await File.WriteAllTextAsync(_filePath, json);
     }
 
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Mtc.exe Path
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+    public string MtcExePath
+    {
+        get => _settings.MtcExePath;
+        set
+        {
+            _settings.MtcExePath = value;
+            _ = SaveAsync();
+        }
+    }
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Tag Colors
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -47,7 +59,6 @@ public class SettingsService
             return color;
 
         // Auto-assign a random color and save it
-        var random = new Random();
         color = Color.FromRgb(
             (byte) random.Next(0, 255),
             (byte) random.Next(0, 255),
@@ -58,7 +69,7 @@ public class SettingsService
     }
 
     // Change Value of a color to a specified amount
-    public string varyColor(string hex, float value)
+    public string VaryColor(string hex, float value)
     {
         var color = SKColor.Parse(hex);
         color.ToHsv(out float h, out float s, out float v);

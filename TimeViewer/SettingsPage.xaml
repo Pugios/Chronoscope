@@ -148,6 +148,21 @@
                         Width="160" />
                 </sf:SfDataGrid.Columns>
             </sf:SfDataGrid>
+            
+            <!-- ManicTime Path -->
+            <HorizontalStackLayout
+                Spacing="10"
+                VerticalOptions="Center">
+                <Label
+                    Text="mtc.exe:"
+                    VerticalOptions="Center" />
+                <Label
+                    Text="{Binding MtcExePath}"
+                    VerticalOptions="Center" />
+                <Button
+                    Text="Browse..."
+                    Clicked="OnBrowseMtcClicked" />
+            </HorizontalStackLayout>
 
             <!-- Save Button -->
             <Button
