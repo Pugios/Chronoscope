@@ -68,11 +68,13 @@ public partial class ExplorerSettingsPage : ContentPage
     }
     private List<AppsTagsDocumentsTable> BuildPreview()
     {
-        return DataService.ApplyExplorerRules(
+        List<AppsTagsDocumentsTable> data = DataService.ApplyExplorerRules(
             _dataService.CachedAppsTagsDocuments
                 .Where(r => r.Process == _processName)
                 .ToList(),
             _workingRules);
+
+        return data.DistinctBy(r => (r.Name, r.DocName, r.Domain, r.Tag)).ToList();
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

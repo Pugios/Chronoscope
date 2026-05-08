@@ -19,26 +19,20 @@
             Spacing="20"
             Padding="20">
             <!-- Color Picker -->
-            <CollectionView
-                ItemsSource="{Binding TagColors}">
-                <CollectionView.ItemsLayout>
-                    <LinearItemsLayout
-                        Orientation="Vertical" />
-                </CollectionView.ItemsLayout>
-
-                <CollectionView.ItemTemplate>
+            <FlexLayout
+                BindableLayout.ItemsSource="{Binding TagColors}"
+                Wrap="Wrap"
+                JustifyContent="Start"
+                AlignItems="Start">
+                <BindableLayout.ItemTemplate>
                     <DataTemplate
                         x:DataType="local:TagColorRow">
-                        <HorizontalStackLayout
-                            Spacing="12"
+                        <VerticalStackLayout
+                            FlexLayout.Basis="200"
                             Padding="8,4">
 
-                            <Label
-                                Text="{Binding Tag}"
-                                VerticalOptions="Center"
-                                WidthRequest="120" />
-
-                            <VerticalStackLayout>
+                            <HorizontalStackLayout
+                                Spacing="8">
 
                                 <BoxView
                                     Color="{Binding Color}"
@@ -52,26 +46,31 @@
                                     </BoxView.GestureRecognizers>
                                 </BoxView>
 
-                                <Border
-                                    IsVisible="{Binding IsPickerVisible}"
-                                    Stroke="LightGray"
-                                    StrokeThickness="1"
-                                    BackgroundColor="White"
-                                    Padding="8"
-                                    TranslationY="4">
-                                    <controls:ColorPicker
-                                        x:Name="ColorPicker"
-                                        WidthRequest="280"
-                                        HeightRequest="140"
-                                        ColorSpectrumStyle="TintToHueToShadeStyle"
-                                        PickedColorChanged="ColorPicker_PickedColorChanged" />
-                                </Border>
-                            </VerticalStackLayout>
+                                <Label
+                                    Text="{Binding Tag}"
+                                    VerticalOptions="Center" />
 
-                        </HorizontalStackLayout>
+                            </HorizontalStackLayout>
+
+                            <Border
+                                IsVisible="{Binding IsPickerVisible}"
+                                Stroke="LightGray"
+                                StrokeThickness="1"
+                                BackgroundColor="White"
+                                Padding="8"
+                                TranslationY="4">
+                                <controls:ColorPicker
+                                    x:Name="ColorPicker"
+                                    WidthRequest="280"
+                                    HeightRequest="140"
+                                    ColorSpectrumStyle="TintToHueToShadeStyle"
+                                    PickedColorChanged="ColorPicker_PickedColorChanged" />
+                            </Border>
+
+                        </VerticalStackLayout>
                     </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
+                </BindableLayout.ItemTemplate>
+            </FlexLayout>
 
             <!-- Assign Tag to selected Rows -->
             <HorizontalStackLayout
@@ -97,10 +96,14 @@
                     Clicked="OnAssignTagClicked" />
             </HorizontalStackLayout>
 
-            <!-- Make Explorer App -->
             <HorizontalStackLayout
                 Spacing="10"
                 VerticalOptions="Center">
+                <!-- Save Button -->
+                <Button
+                    Text="Save"
+                    Clicked="OnSaveClicked" />
+                <!-- Make Explorer App -->
                 <Button
                     Text="Configure Subprocesses"
                     Clicked="OnConfigSubprocessClicked" />
@@ -112,6 +115,7 @@
                 ItemsSource="{Binding ProcessRows}"
                 AutoGenerateColumnsMode="None"
                 HeightRequest="400"
+                HorizontalOptions="Fill"
                 DefaultStyle="{StaticResource DefaultDataGridStyle}"
                 ColumnWidthMode="Fill"
                 SortingMode="Single"
@@ -131,21 +135,19 @@
                     <sf:DataGridTextColumn
                         HeaderText="Process"
                         MappingName="Process"
-                        Width="200"
                         AllowFiltering="True" />
                     <sf:DataGridTextColumn
                         HeaderText="Tag"
                         MappingName="Tag"
-                        Width="120"
                         AllowFiltering="True" />
                     <sf:DataGridTextColumn
+                        Width="100"
                         HeaderText="Total Time"
-                        MappingName="TotalTime"
-                        Width="100" />
+                        MappingName="TotalTime" />
                     <sf:DataGridTextColumn
+                        Width="150"
                         HeaderText="Last Used"
-                        MappingName="LastUsed"
-                        Width="160" />
+                        MappingName="LastUsed" />
                 </sf:SfDataGrid.Columns>
             </sf:SfDataGrid>
             
@@ -163,11 +165,6 @@
                     Text="Browse..."
                     Clicked="OnBrowseMtcClicked" />
             </HorizontalStackLayout>
-
-            <!-- Save Button -->
-            <Button
-                Text="Save"
-                Clicked="OnSaveClicked" />
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

@@ -6,163 +6,164 @@
     xmlns:local="clr-namespace:TimeViewer"
     xmlns:sfgrid="clr-namespace:Syncfusion.Maui.DataGrid;assembly=Syncfusion.Maui.DataGrid"
     Title="Explorer App Settings">
+    <ScrollView>
+        <Grid>
+            <VerticalStackLayout
+                Padding="20">
+                <!-- Title -->
+                <Label
+                    x:Name="PageTitle"
+                    FontAttributes="Bold"
+                    FontSize="20" />
 
-    <Grid>
-        <VerticalStackLayout
-            Padding="20">
-            <!-- Title -->
-            <Label
-                x:Name="PageTitle"
-                FontAttributes="Bold"
-                FontSize="20" />
-
-            <!-- Rule Input -->
-            <Border
-                Padding="12"
-                StrokeShape="RoundRectangle 8">
-                <VerticalStackLayout
-                    Spacing="10">
-                    <!-- Column picker -->
-                    <HorizontalStackLayout
-                        Spacing="16">
-                        <Label
-                            Text="Column:"
-                            VerticalOptions="Center" />
-                        <RadioButton
-                            Content="Name"
-                            Value="Name"
-                            IsChecked="true"
-                            CheckedChanged="OnColumnCheckedChanged" />
-                        <RadioButton
-                            Content="DocName"
-                            Value="DocName"
-                            CheckedChanged="OnColumnCheckedChanged" />
-                        <RadioButton
-                            Content="Domain"
-                            Value="Domain"
-                            CheckedChanged="OnColumnCheckedChanged" />
-                    </HorizontalStackLayout>
-
-                    <!-- Match type picker -->
-                    <HorizontalStackLayout
-                        Spacing="16">
-                        <Label
-                            Text="Match:"
-                            VerticalOptions="Center" />
-                        <RadioButton
-                            Content="Prefix"
-                            Value="Prefix"
-                            IsChecked="True"
-                            CheckedChanged="OnMatchTypeCheckedChanged" />
-                        <RadioButton
-                            Content="Include"
-                            Value="Include"
-                            CheckedChanged="OnMatchTypeCheckedChanged" />
-                        <RadioButton
-                            Content="Suffix"
-                            Value="Suffix"
-                            CheckedChanged="OnMatchTypeCheckedChanged" />
-                    </HorizontalStackLayout>
-
-                    <!-- Pattern + Add -->
-                    <HorizontalStackLayout
+                <!-- Rule Input -->
+                <Border
+                    Padding="12"
+                    StrokeShape="RoundRectangle 8">
+                    <VerticalStackLayout
                         Spacing="10">
-                        <Entry
-                            Placeholder="Enter pattern..."
-                            Text="{Binding Pattern}"
-                            WidthRequest="400" />
-                        <Picker
-                            ItemsSource="{Binding AvailableTags}"
-                            SelectedItem="{Binding SelectedTag}"
-                            Title="Select tag..."
-                            WidthRequest="150" />
-                        <Entry
-                            Placeholder="Or new tag..."
-                            Text="{Binding NewTag}"
-                            WidthRequest="150" />
-                        <Button
-                            Text="Add Rule"
-                            Clicked="OnAddRuleClicked" />
-                    </HorizontalStackLayout>
-                </VerticalStackLayout>
-            </Border>
-
-            <!-- Existing Rules -->
-            <CollectionView
-                ItemsSource="{Binding ExplorerRules}"
-                HeightRequest="150">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate
-                        x:DataType="local:ExplorerRule">
+                        <!-- Column picker -->
                         <HorizontalStackLayout
-                            Spacing="12"
-                            Padding="4">
+                            Spacing="16">
                             <Label
-                                Text="{Binding Column}"
-                                WidthRequest="80" />
-                            <Label
-                                Text="{Binding MatchType}"
-                                WidthRequest="60" />
-                            <Label
-                                Text="{Binding Pattern}"
-                                WidthRequest="300" />
-                            <Label
-                                Text="{Binding Tag}"
-                                WidthRequest="300" />
-                            <Button
-                                Text="↑"
-                                Clicked="OnUpClicked" />
-                            <Button
-                                Text="↓"
-                                Clicked="OnDownClicked" />
-                            <Button
-                                Text="Delete"
-                                Clicked="OnDeleteRuleClicked" />
+                                Text="Column:"
+                                VerticalOptions="Center" />
+                            <RadioButton
+                                Content="Name"
+                                Value="Name"
+                                IsChecked="true"
+                                CheckedChanged="OnColumnCheckedChanged" />
+                            <RadioButton
+                                Content="DocName"
+                                Value="DocName"
+                                CheckedChanged="OnColumnCheckedChanged" />
+                            <RadioButton
+                                Content="Domain"
+                                Value="Domain"
+                                CheckedChanged="OnColumnCheckedChanged" />
                         </HorizontalStackLayout>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
 
-            <!-- Data Grid -->
-            <sfgrid:SfDataGrid
-                x:Name="ExplorerDataGrid"
-                AutoGenerateColumnsMode="None"
-                DefaultStyle="{StaticResource DefaultDataGridStyle}"
-                ColumnWidthMode="Fill"
-                SelectionUnit="Cell"
-                SelectionMode="Single"
-                SortingMode="Single"
-                AllowFiltering="True">
-                <sfgrid:SfDataGrid.Columns>
-                    <sfgrid:DataGridTextColumn
-                        MappingName="Process"
-                        HeaderText="Process"/>
-                    <sfgrid:DataGridTextColumn
-                        MappingName="Name"
-                        HeaderText="Name" />
-                    <sfgrid:DataGridTextColumn
-                        MappingName="DocName"
-                        HeaderText="Doc Name" />
-                    <sfgrid:DataGridTextColumn
-                        MappingName="Domain"
-                        HeaderText="Domain" />
-                    <sfgrid:DataGridTextColumn
-                        MappingName="Tag"
-                        HeaderText="Tag" />
-                </sfgrid:SfDataGrid.Columns>
-            </sfgrid:SfDataGrid>
+                        <!-- Match type picker -->
+                        <HorizontalStackLayout
+                            Spacing="16">
+                            <Label
+                                Text="Match:"
+                                VerticalOptions="Center" />
+                            <RadioButton
+                                Content="Prefix"
+                                Value="Prefix"
+                                IsChecked="True"
+                                CheckedChanged="OnMatchTypeCheckedChanged" />
+                            <RadioButton
+                                Content="Include"
+                                Value="Include"
+                                CheckedChanged="OnMatchTypeCheckedChanged" />
+                            <RadioButton
+                                Content="Suffix"
+                                Value="Suffix"
+                                CheckedChanged="OnMatchTypeCheckedChanged" />
+                        </HorizontalStackLayout>
 
-            <!-- Actions -->
-            <HorizontalStackLayout
-                Spacing="12"
-                HorizontalOptions="Center">
-                <Button
-                    Text="Cancel"
-                    Clicked="OnCancelClicked" />
-                <Button
-                    Text="Confirm"
-                    Clicked="OnConfirmClicked" />
-            </HorizontalStackLayout>
-        </VerticalStackLayout>
-    </Grid>
+                        <!-- Pattern + Add -->
+                        <HorizontalStackLayout
+                            Spacing="10">
+                            <Entry
+                                Placeholder="Enter pattern..."
+                                Text="{Binding Pattern}"
+                                WidthRequest="400" />
+                            <Picker
+                                ItemsSource="{Binding AvailableTags}"
+                                SelectedItem="{Binding SelectedTag}"
+                                Title="Select tag..."
+                                WidthRequest="150" />
+                            <Entry
+                                Placeholder="Or new tag..."
+                                Text="{Binding NewTag}"
+                                WidthRequest="150" />
+                            <Button
+                                Text="Add Rule"
+                                Clicked="OnAddRuleClicked" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Existing Rules -->
+                <CollectionView
+                    ItemsSource="{Binding ExplorerRules}"
+                    HeightRequest="150">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate
+                            x:DataType="local:ExplorerRule">
+                            <HorizontalStackLayout
+                                Spacing="12"
+                                Padding="4">
+                                <Label
+                                    Text="{Binding Column}"
+                                    WidthRequest="80" />
+                                <Label
+                                    Text="{Binding MatchType}"
+                                    WidthRequest="60" />
+                                <Label
+                                    Text="{Binding Pattern}"
+                                    WidthRequest="300" />
+                                <Label
+                                    Text="{Binding Tag}"
+                                    WidthRequest="300" />
+                                <Button
+                                    Text="↑"
+                                    Clicked="OnUpClicked" />
+                                <Button
+                                    Text="↓"
+                                    Clicked="OnDownClicked" />
+                                <Button
+                                    Text="Delete"
+                                    Clicked="OnDeleteRuleClicked" />
+                            </HorizontalStackLayout>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <!-- Data Grid -->
+                <sfgrid:SfDataGrid
+                    x:Name="ExplorerDataGrid"
+                    AutoGenerateColumnsMode="None"
+                    DefaultStyle="{StaticResource DefaultDataGridStyle}"
+                    ColumnWidthMode="Fill"
+                    SelectionUnit="Cell"
+                    SelectionMode="Single"
+                    SortingMode="Single"
+                    AllowFiltering="True">
+                    <sfgrid:SfDataGrid.Columns>
+                        <sfgrid:DataGridTextColumn
+                            MappingName="Process"
+                            HeaderText="Process" />
+                        <sfgrid:DataGridTextColumn
+                            MappingName="Name"
+                            HeaderText="Name" />
+                        <sfgrid:DataGridTextColumn
+                            MappingName="DocName"
+                            HeaderText="Doc Name" />
+                        <sfgrid:DataGridTextColumn
+                            MappingName="Domain"
+                            HeaderText="Domain" />
+                        <sfgrid:DataGridTextColumn
+                            MappingName="Tag"
+                            HeaderText="Tag" />
+                    </sfgrid:SfDataGrid.Columns>
+                </sfgrid:SfDataGrid>
+
+                <!-- Actions -->
+                <HorizontalStackLayout
+                    Spacing="12"
+                    HorizontalOptions="Center">
+                    <Button
+                        Text="Cancel"
+                        Clicked="OnCancelClicked" />
+                    <Button
+                        Text="Confirm"
+                        Clicked="OnConfirmClicked" />
+                </HorizontalStackLayout>
+            </VerticalStackLayout>
+        </Grid>
+    </ScrollView>
 </ContentPage>
