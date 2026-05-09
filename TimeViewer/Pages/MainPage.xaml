@@ -1,0 +1,108 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.Maui;assembly=LiveChartsCore.SkiaSharpView.Maui"
+    xmlns:local="clr-namespace:TimeViewer"
+    x:Class="TimeViewer.MainPage">
+
+    <Grid>
+        <HorizontalStackLayout
+            HorizontalOptions="Center"
+            VerticalOptions="Center">
+            <VerticalStackLayout>
+                <lvc:PieChart
+                    InitialRotation="-90"
+                    SeriesSource="{Binding PieDataCollection}"
+                    WidthRequest="500"
+                    HeightRequest="500">
+                    <lvc:PieChart.SeriesTemplate>
+                        <DataTemplate
+                            x:DataType="local:PieData">
+                            <lvc:XamlPieSeries
+                                SeriesName="{Binding Name}"
+                                Values="{Binding Values}"
+                                ToolTipLabelFormatter="{Binding Formatter}"
+                                Fill="{Binding Fill}">
+                            </lvc:XamlPieSeries>
+                        </DataTemplate>
+                    </lvc:PieChart.SeriesTemplate>
+                </lvc:PieChart>
+
+                <HorizontalStackLayout
+                    HorizontalOptions="Center"
+                    Spacing="10">
+                    <Button
+                        Text="&lt;&lt;"
+                        Clicked="OnPrevWeekClicked" />
+                    <Button
+                        Text="&lt;"
+                        Clicked="OnPrevDayClicked" />
+                    <Label
+                        Text="{Binding DisplayDay}"
+                        VerticalTextAlignment="Center" />
+                    <Button
+                        Text="&#10227;"
+                        Clicked="OnRefreshClicked" />
+                    <Button
+                        Text=">"
+                        Clicked="OnNextDayClicked" />
+                    <Button
+                        Text=">>"
+                        Clicked="OnNextWeekClicked" />
+                </HorizontalStackLayout>
+            </VerticalStackLayout>
+
+            <ScrollView
+                Margin="10">
+                <CollectionView
+                    ItemsSource="{Binding LegendItems}">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate
+                            x:DataType="local:LegendItem">
+                            <Grid
+                                ColumnDefinitions="*,Auto">
+                                <HorizontalStackLayout
+                                    Grid.Column="0"
+                                    Margin="{Binding Indent}">
+                                    <BoxView
+                                        Color="{Binding Color}"
+                                        WidthRequest="12"
+                                        HeightRequest="12"
+                                        CornerRadius="6"
+                                        VerticalOptions="Center"
+                                        Margin="0,0,6,0" />
+                                    <Label
+                                        Text="{Binding Name}"
+                                        FontAttributes="Bold" />
+                                </HorizontalStackLayout>
+                                <Label
+                                    Grid.Column="1"
+                                    Text="{Binding Duration}"
+                                    HorizontalTextAlignment="End"
+                                    HorizontalOptions="End" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </ScrollView>
+
+        </HorizontalStackLayout>
+
+        <VerticalStackLayout
+            HorizontalOptions="End"
+            VerticalOptions="Start"
+            Margin="10"
+            Spacing="4">
+                <Button
+                    Text="📌"
+                    Clicked="OnPinClicked" />
+                <Button
+                    Text="⚙"
+                    Clicked="OnSettingsClicked" />
+                <Button
+                    Text="📊"
+                    Clicked="OnStatisticsClicked" />
+        </VerticalStackLayout>
+    </Grid>
+</ContentPage>

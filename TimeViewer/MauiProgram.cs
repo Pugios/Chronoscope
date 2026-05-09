@@ -25,6 +25,7 @@ namespace TimeViewer
             builder.Services.AddTransient<MainPage>();
             builder.Services.AddTransient<SettingsPage>();
             builder.Services.AddTransient<ExplorerSettingsPage>();
+            builder.Services.AddTransient<StatisticsPage>();
             builder.Services.AddSingleton<DataService>();
             builder.Services.AddSingleton<SettingsService>();
 

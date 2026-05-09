@@ -56,6 +56,13 @@ public partial class SettingsPage : ContentPage
 
     private void LoadColors()
     {
+        var explorerTags = _dataService.ExplorerRules
+          .Select(r => r.Tag)
+          .Distinct();
+
+        foreach (var tag in explorerTags)
+            _settingsService.GetTagColor(tag);
+
         TagColors = _settingsService.TagColors.Select(a =>
         {
             var color = SKColor.Parse(a.Value).ToMauiColor();
@@ -93,7 +100,10 @@ public partial class SettingsPage : ContentPage
 
     private void CleanupColors()
     {
-        var usedTags = _dataService.CachedTags.Select(t => t.Tag).Distinct();
+        var usedTags = _dataService.CachedTags
+            .Select(t => t.Tag)
+            .Concat(_dataService.ExplorerRules.Select(r => r.Tag))
+            .Distinct();
         string[] exceptions = ["Remaining", "No Clue"];
 
         var tagsToRemove = TagColors

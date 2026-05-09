@@ -88,10 +88,9 @@
                 </Border>
 
                 <!-- Existing Rules -->
-                <CollectionView
-                    ItemsSource="{Binding ExplorerRules}"
-                    HeightRequest="150">
-                    <CollectionView.ItemTemplate>
+                <VerticalStackLayout
+                    BindableLayout.ItemsSource="{Binding ExplorerRules}">
+                    <BindableLayout.ItemTemplate>
                         <DataTemplate
                             x:DataType="local:ExplorerRule">
                             <HorizontalStackLayout
@@ -120,8 +119,8 @@
                                     Clicked="OnDeleteRuleClicked" />
                             </HorizontalStackLayout>
                         </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
 
                 <!-- Data Grid -->
                 <sfgrid:SfDataGrid

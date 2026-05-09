@@ -117,6 +117,12 @@ public partial class MainPage : ContentPage
     {
         await Shell.Current.GoToAsync(nameof(SettingsPage));
     }
+
+    private async void OnStatisticsClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync(nameof(StatisticsPage));
+    }
+    
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Graph
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -207,7 +213,7 @@ public partial class MainPage : ContentPage
             string tagColor = _settingsService.GetTagColor(tag.Tag);
             pieDataList.Add(new PieData {
                 Name = tag.Tag,
-                Values = [null, tag.Seconds],
+                Values = [tag.Seconds, null],
                 Fill = new SolidColorPaint(SKColor.Parse(tagColor))
             });
 
@@ -233,7 +239,7 @@ public partial class MainPage : ContentPage
                 pieDataList.Add(new PieData
                 {
                     Name = proc.Process,
-                    Values = [proc.Seconds, null],
+                    Values = [null, proc.Seconds],
                     Fill = new SolidColorPaint(SKColor.Parse(procColor))
                 });
 
@@ -255,8 +261,8 @@ public partial class MainPage : ContentPage
         var remainColor = _settingsService.GetTagColor("Remaining");
         var remainPaint = new SolidColorPaint(SKColor.Parse(remainColor));
 
-        pieDataList.Add(new PieData { Name = "Remaining", Values = [null, remaining], Fill = remainPaint });
         pieDataList.Add(new PieData { Name = "Remaining", Values = [remaining, null], Fill = remainPaint });
+        pieDataList.Add(new PieData { Name = "Remaining", Values = [null, remaining], Fill = remainPaint });
 
         // Transform pieDataList into an Array and binding to UI
         PieDataCollection = pieDataList.ToArray();
