@@ -70,3 +70,6 @@ graphs/*
 secrets.json
 Secrets.cs
 ClaudeCodeContext.md
+
+# Too Large
+TimeViewer/installer/*
