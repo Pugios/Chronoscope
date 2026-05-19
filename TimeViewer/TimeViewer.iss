@@ -1,7 +1,7 @@
 [Setup]
 AppId={{bd30d463-63bd-4623-a1a0-7da3305e8e14}
 AppName=TimeViewer
-AppVersion=0.1
+AppVersion=0.2
 AppPublisher=Mohamed Matar
 DefaultDirName={autopf}\TimeViewer
 DefaultGroupName=TimeViewer
