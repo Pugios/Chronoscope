@@ -3,7 +3,7 @@
 I find it fascinating to discover patterns in everything, including my own life. 
 Time Management is a system I built to observe my own behavior and understand how I actually spend my time on the PC each day.
 
-To track myself, I use ManicTime (https://www.manictime.com/), which records the active window throughout the day. **This app is dependant on ManicTimes Data!**  You need to also install their App for mine to work!
+To track myself, I use ManicTime (https://www.manictime.com/), which records the active window throughout the day. **This app is dependant on ManicTime's Data!**  You need to also install their App for mine to work!
 
 While it already provides some built-in views, it can still be hard to get a quick and clear picture of how long you actually work.
 
@@ -14,7 +14,7 @@ TimeViewer is a Windows desktop app built with .NET MAUI that solves this. It pu
 
 The result is displayed as an interactive nested pie chart you can navigate day by day to analyse your own behaviour.
 
-For the larger picture, Analysis (./Analysis/) provides several Python scripts to identify longer-term trends. My goal is to eventually surface these statistics in the app as well.
+For the larger picture, [Analysis](./Analysis/) provides several Python scripts to identify longer-term trends. My goal is to eventually surface these statistics in the app as well.
 
 ---
 Home Page
