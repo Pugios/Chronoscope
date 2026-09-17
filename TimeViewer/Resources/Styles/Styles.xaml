@@ -12,6 +12,13 @@
             Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource OffBlack}}" />
     </Style>
 
+    <Style
+        TargetType="lvc:CartesianChart">
+        <Setter
+            Property="BackgroundColor"
+            Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource OffBlack}}" />
+    </Style>
+
     <Style TargetType="ActivityIndicator">
         <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
     </Style>

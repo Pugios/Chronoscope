@@ -210,8 +210,8 @@ public class DataService
                      select new AppsTagsDocumentsTable
                      {
                          Name = data.Name,
-                         DocName = subgroup?.Name ?? "No Clue",
-                         Domain = subgroup?.Domain ?? "No Clue",
+                         DocName = subgroup?.Name ?? "",
+                         Domain = subgroup?.Domain ?? "",
                          Start = data.Start,
                          End = data.End,
                          Duration = data.Duration,

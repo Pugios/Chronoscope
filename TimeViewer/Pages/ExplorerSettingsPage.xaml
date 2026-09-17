@@ -5,7 +5,14 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:TimeViewer"
     xmlns:sfgrid="clr-namespace:Syncfusion.Maui.DataGrid;assembly=Syncfusion.Maui.DataGrid"
+    xmlns:data="clr-namespace:Syncfusion.Maui.Data;assembly=Syncfusion.Maui.Data"
     Title="Explorer App Settings">
+    <ContentPage.Resources>
+        <local:DateSortComparer
+            x:Key="DateComparer" />
+        <local:TotalSecondsSortComparer
+            x:Key="TotalSecondsComparer" />
+    </ContentPage.Resources>
     <ScrollView>
         <Grid>
             <VerticalStackLayout
@@ -132,6 +139,16 @@
                     SelectionMode="Single"
                     SortingMode="Single"
                     AllowFiltering="True">
+
+                    <sfgrid:SfDataGrid.SortComparers>
+                        <data:SortComparer
+                            Comparer="{StaticResource DateComparer}"
+                            PropertyName="LastUsed" />
+                        <data:SortComparer
+                            Comparer="{StaticResource TotalSecondsComparer}"
+                            PropertyName="TotalTime" />
+                    </sfgrid:SfDataGrid.SortComparers>
+
                     <sfgrid:SfDataGrid.Columns>
                         <sfgrid:DataGridTextColumn
                             MappingName="Process"
@@ -148,6 +165,14 @@
                         <sfgrid:DataGridTextColumn
                             MappingName="Tag"
                             HeaderText="Tag" />
+                        <sfgrid:DataGridTextColumn
+                            Width="100"
+                            MappingName="TotalTime"
+                            HeaderText="Total Time" />
+                        <sfgrid:DataGridTextColumn
+                            Width="150"
+                            MappingName="LastUsed"
+                            HeaderText="Last Used" />
                     </sfgrid:SfDataGrid.Columns>
                 </sfgrid:SfDataGrid>
 

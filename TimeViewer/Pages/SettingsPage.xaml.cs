@@ -355,7 +355,7 @@ public class TagColorRow : INotifyPropertyChanged
 
 // ProcessRow
 // ====================================================
-public class ProcessRow : INotifyPropertyChanged
+public class ProcessRow : INotifyPropertyChanged, IUsageStats
 {
     public string Process { get; set; }
     public string RootProcess { get; set; } 
@@ -379,34 +379,4 @@ public class ProcessRow : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged(string name) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-}
-
-// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// Custom Comparer for Sorting
-// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-public class DateSortComparer : IComparer<object>, ISortDirection
-{
-    public ListSortDirection SortDirection { get; set; }
-
-    public int Compare(object x, object y)
-    {
-        var dateX = ((ProcessRow)x).LastUsedDate;
-        var dateY = ((ProcessRow)y).LastUsedDate;
-        int result = dateX.CompareTo(dateY);
-        return SortDirection == ListSortDirection.Ascending ? result : -result;
-    }
-}
-
-public class TotalSecondsSortComparer : IComparer<object>, ISortDirection
-{
-    public ListSortDirection SortDirection { get; set; }
-
-    public int Compare(object x, object y)
-    {
-        var secX = ((ProcessRow)x).TotalSeconds;
-        var secY = ((ProcessRow)y).TotalSeconds;
-        int result = secX.CompareTo(secY);
-        return SortDirection == ListSortDirection.Ascending ? result : -result;
-    }
 }

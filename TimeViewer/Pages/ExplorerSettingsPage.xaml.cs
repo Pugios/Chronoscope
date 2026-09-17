@@ -66,7 +66,8 @@ public partial class ExplorerSettingsPage : ContentPage
         ExplorerRules = _workingRules.ToArray();
         ExplorerDataGrid.ItemsSource = BuildPreview();
     }
-    private List<AppsTagsDocumentsTable> BuildPreview()
+
+    private List<ExplorerPreviewRow> BuildPreview()
     {
         List<AppsTagsDocumentsTable> data = DataService.ApplyExplorerRules(
             _dataService.CachedAppsTagsDocuments
@@ -74,7 +75,32 @@ public partial class ExplorerSettingsPage : ContentPage
                 .ToList(),
             _workingRules);
 
-        return data.DistinctBy(r => (r.Name, r.DocName, r.Domain, r.Tag)).ToList();
+        // Collapse the intervals into one row per grouped task, keeping how long
+        // and how recently it was used
+        return data
+            .GroupBy(r => (r.Process, r.Name, r.DocName, r.Domain, r.Tag))
+            .Select(g =>
+            {
+                var totalTime = TimeSpan.FromSeconds(g.Sum(r => TimeSpan.Parse(r.Duration).TotalSeconds));
+                var lastUsed = g.Max(r => r.End);
+                return new ExplorerPreviewRow
+                {
+                    Process = g.Key.Process,
+                    Name = g.Key.Name,
+                    DocName = g.Key.DocName,
+                    Domain = g.Key.Domain,
+                    Tag = g.Key.Tag,
+                    TotalTime = totalTime.Days > 0
+                            ? totalTime.ToString(@"d\d\ hh\:mm")
+                            : totalTime.ToString(@"hh\:mm"),
+                    LastUsed = lastUsed.ToString("yyyy-MM-dd HH:mm"),
+
+                    TotalSeconds = totalTime.TotalSeconds,
+                    LastUsedDate = lastUsed
+                };
+            })
+            .OrderByDescending(r => r.LastUsedDate)
+            .ToList();
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -222,4 +248,25 @@ public partial class ExplorerSettingsPage : ContentPage
     {
         await Shell.Current.GoToAsync("..");
     }
+}
+
+
+// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Classes to Bind to the UI
+// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+// ExplorerPreviewRow
+// ====================================================
+public class ExplorerPreviewRow : IUsageStats
+{
+    public string Process { get; set; }
+    public string Name { get; set; }
+    public string DocName { get; set; }
+    public string Domain { get; set; }
+    public string Tag { get; set; }
+    public string TotalTime { get; set; }
+    public string LastUsed { get; set; }
+    // For Sorting
+    public double TotalSeconds { get; set; }
+    public DateTime LastUsedDate { get; set; }
 }
