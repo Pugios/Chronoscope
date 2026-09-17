@@ -1,4 +1,4 @@
-﻿using SkiaSharp;
+using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using System;
 using System.Collections.Generic;
@@ -75,6 +75,30 @@ public class SettingsService
         color.ToHsv(out float h, out float s, out float v);
         v = Math.Min(100f, value);
         return SKColor.FromHsv(h, s, v).ToString();
+    }
+
+    // GitHub-style shade ramp for one tag: index 0 is "nothing tracked" (a theme-neutral gray),
+    // 1..steps run pale -> the tag's own color, which is the highest step exactly.
+    // VaryColor cannot do this on its own: it only moves HSV value, so a pale step would come out
+    // as a washed-out bright color rather than a tint. Saturation is lifted and value dropped
+    // together here instead.
+    public string[] BuildTagRamp(string hex, int steps)
+    {
+        var ramp = new string[steps + 1];
+        ramp[0] = Application.Current?.RequestedTheme == AppTheme.Dark ? "#2D333B" : "#EBEDF0";
+
+        var color = SKColor.Parse(hex);
+        color.ToHsv(out float h, out float s, out float v);
+
+        for (int i = 1; i <= steps; i++)
+        {
+            float t = i / (float)steps;
+            float si = Math.Clamp(s * (0.25f + (0.75f * t)), 0f, 100f);
+            float vi = Math.Clamp(v + ((100f - v) * (1f - t) * 0.75f), 0f, 100f);
+            ramp[i] = SKColor.FromHsv(h, si, vi).ToString();
+        }
+
+        return ramp;
     }
 
     // Set a new Color

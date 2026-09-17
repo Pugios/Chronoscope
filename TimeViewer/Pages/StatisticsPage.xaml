@@ -1,15 +1,137 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.Maui;assembly=LiveChartsCore.SkiaSharpView.Maui"
+    xmlns:graphics="clr-namespace:Microsoft.Maui.Graphics;assembly=Microsoft.Maui.Graphics"
     xmlns:local="clr-namespace:TimeViewer"
-    x:Class="TimeViewer.StatisticsPage">
+    x:Class="TimeViewer.StatisticsPage"
+    Title="Statistics">
 
-    <Grid>
+    <Grid
+        RowDefinitions="Auto,*"
+        RowSpacing="10"
+        Padding="20">
+
+        <!-- Year navigation, same glyphs as MainPage's day controls. Indented to the grids' first
+             column rather than centred on the window, which the left aligned charts would leave
+             stranded out in the empty right half. -->
+        <HorizontalStackLayout
+            Grid.Row="0"
+            Margin="28,0,0,0"
+            HorizontalOptions="Start"
+            Spacing="10">
+            <Button
+                Text="&lt;"
+                Clicked="OnPrevYearClicked" />
+            <Label
+                Text="{Binding DisplayYear}"
+                FontAttributes="Bold"
+                VerticalTextAlignment="Center" />
+            <Button
+                Text="&#10227;"
+                Clicked="OnRefreshClicked" />
+            <Button
+                Text=">"
+                Clicked="OnNextYearClicked" />
+        </HorizontalStackLayout>
+
         <Label
-            Text="Time Summary and Behavior Analysis coming soon!"
+            Grid.Row="1"
+            Text="{Binding EmptyMessage}"
+            IsVisible="{Binding IsEmpty}"
             HorizontalOptions="Center"
-            VerticalOptions="Center"/>
+            VerticalOptions="Center" />
+
+        <!-- Both orientations: a 53 week grid is wider than the compact window the app is
+             usually pinned at, so the charts scroll rather than squash -->
+        <ScrollView
+            Grid.Row="1"
+            Orientation="Both">
+            <VerticalStackLayout
+                Spacing="18"
+                BindableLayout.ItemsSource="{Binding TagHeatmaps}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate
+                        x:DataType="local:TagYearHeatmap">
+                        <VerticalStackLayout
+                            Spacing="4">
+
+                            <!-- Title row, indented to line up with the grid's first column.
+                                 BackgroundColor is cleared on every BoxView because the global
+                                 style would otherwise paint a square behind the rounded fill. -->
+                            <HorizontalStackLayout
+                                Margin="28,0,0,0"
+                                Spacing="8">
+                                <BoxView
+                                    Color="{Binding TagColor}"
+                                    BackgroundColor="Transparent"
+                                    WidthRequest="12"
+                                    HeightRequest="12"
+                                    CornerRadius="6"
+                                    VerticalOptions="Center" />
+                                <Label
+                                    Text="{Binding Tag}"
+                                    FontAttributes="Bold"
+                                    VerticalOptions="Center" />
+                                <Label
+                                    Text="{Binding TotalLabel}"
+                                    Opacity="0.7"
+                                    VerticalOptions="Center" />
+
+                                <!-- The scale strip is drawn from the ramp itself, so it can never
+                                     drift from the shades in the grid -->
+                                <Label
+                                    Margin="12,0,0,0"
+                                    Text="Less"
+                                    FontSize="11"
+                                    Opacity="0.7"
+                                    VerticalOptions="Center" />
+                                <HorizontalStackLayout
+                                    Spacing="2"
+                                    VerticalOptions="Center"
+                                    BindableLayout.ItemsSource="{Binding ScaleSwatches}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate
+                                            x:DataType="graphics:Color">
+                                            <BoxView
+                                                Color="{Binding .}"
+                                                BackgroundColor="Transparent"
+                                                WidthRequest="10"
+                                                HeightRequest="10"
+                                                CornerRadius="2" />
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </HorizontalStackLayout>
+                                <Label
+                                    Text="More"
+                                    FontSize="11"
+                                    Opacity="0.7"
+                                    VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+
+                            <!-- Series, axes and DrawMargin all arrive built from the code behind:
+                                 the labelers close over the year's calendar, and pinning
+                                 DrawMargin keeps the plot area exactly the grid so the cells stay
+                                 square at any window width. Animating ~370 cells per tag would
+                                 only stutter, so the speed is zeroed like the timeline's. -->
+                            <lvc:CartesianChart
+                                Series="{Binding Series}"
+                                XAxes="{Binding XAxes}"
+                                YAxes="{Binding YAxes}"
+                                DrawMargin="{Binding DrawMargin}"
+                                WidthRequest="{Binding ChartWidth}"
+                                HeightRequest="{Binding ChartHeight}"
+                                HorizontalOptions="Start"
+                                ZoomMode="None"
+                                LegendPosition="Hidden"
+                                TooltipPosition="Top"
+                                FindingStrategy="ExactMatch"
+                                AnimationsSpeed="0:0:0" />
+                        </VerticalStackLayout>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+        </ScrollView>
     </Grid>
 </ContentPage>

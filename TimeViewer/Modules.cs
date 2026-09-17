@@ -1,5 +1,8 @@
-﻿using CsvHelper.Configuration.Attributes;
+using CsvHelper.Configuration.Attributes;
+using LiveChartsCore;
 using LiveChartsCore.Kernel;
+using LiveChartsCore.Kernel.Sketches;
+using LiveChartsCore.Measure;
 using LiveChartsCore.SkiaSharpView.Painting;
 using Syncfusion.Maui.Data;
 using System.ComponentModel;
@@ -116,6 +119,26 @@ public class LegendItem
     public string Duration { get; set; }
     public Color Color { get; set; }
     public Thickness Indent { get; set; }
+}
+
+// One tag's year of daily totals, shaped as a GitHub-contributions grid:
+// X = week column, Y = weekday (0 = Mon .. 6 = Sun, drawn top-down by an inverted Y axis).
+// The series and axes are built ready-made in StatisticsPage rather than in the DataTemplate,
+// because their labelers and the tooltip close over the year's calendar and this tag's own daily
+// totals - and because binding them whole keeps x:TypeArguments generics out of the XAML.
+public class TagYearHeatmap
+{
+    public string Tag { get; init; } = "";
+    public Color TagColor { get; init; } = Colors.Transparent; // the dot beside the title
+    public string TotalLabel { get; init; } = ""; // "412h over 231 days"
+    public ISeries[] Series { get; init; } = [];  // exactly ONE heat series
+    public ICartesianAxis[] XAxes { get; init; } = [];
+    public ICartesianAxis[] YAxes { get; init; } = [];
+    // Pinned so the plot area is exactly the grid and the cells cannot go rectangular on a resize
+    public Margin DrawMargin { get; init; } = new(0);
+    public double ChartWidth { get; init; }
+    public double ChartHeight { get; init; }
+    public Color[] ScaleSwatches { get; init; } = []; // the Less -> More strip, the ramp itself
 }
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
