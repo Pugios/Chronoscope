@@ -28,6 +28,7 @@ namespace TimeViewer
             builder.Services.AddTransient<StatisticsPage>();
             builder.Services.AddSingleton<DataService>();
             builder.Services.AddSingleton<SettingsService>();
+            builder.Services.AddSingleton<VaultExportService>();
 
             builder.ConfigureSyncfusionCore();
 

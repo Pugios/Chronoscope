@@ -1,4 +1,5 @@
-using CommunityToolkit.Maui.Alerts;
+﻿using CommunityToolkit.Maui.Alerts;
+using CommunityToolkit.Maui.Storage;
 using Maui.ColorPicker;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
@@ -31,6 +32,8 @@ public partial class SettingsPage : ContentPage
         await LoadProcessesAsync();
         LoadAvailableTags();
         MtcExePath = _settingsService.MtcExePath;
+        ObsidianExportPath = _settingsService.ObsidianExportPath;
+        ObsidianExportEnabled = _settingsService.ObsidianExportEnabled;
     }
 
     protected override void OnDisappearing()
@@ -287,12 +290,52 @@ public partial class SettingsPage : ContentPage
     }
 
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Obsidian Vault Export
+    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    private string _obsidianExportPath = "";
+    public string ObsidianExportPath
+    {
+        get => _obsidianExportPath;
+        set
+        {
+            _obsidianExportPath = value;
+            OnPropertyChanged(nameof(ObsidianExportPath));
+        }
+    }
+
+    private bool _obsidianExportEnabled;
+    public bool ObsidianExportEnabled
+    {
+        get => _obsidianExportEnabled;
+        set
+        {
+            _obsidianExportEnabled = value;
+            OnPropertyChanged(nameof(ObsidianExportEnabled));
+        }
+    }
+
+    // FilePicker cannot pick a folder, so this is the CommunityToolkit one rather than the
+    // Essentials picker OnBrowseMtcClicked uses.
+    private async void OnBrowseVaultClicked(object? sender, EventArgs e)
+    {
+        var result = await FolderPicker.Default.PickAsync(CancellationToken.None);
+
+        if (result.IsSuccessful)
+            ObsidianExportPath = result.Folder.Path;
+    }
+
+    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Save
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     private async void OnSaveClicked(object? sender, EventArgs e)
     {
         // Save mtc.exe Path
         _settingsService.MtcExePath = MtcExePath;
+
+        // Save Obsidian Vault Export
+        _settingsService.ObsidianExportPath = ObsidianExportPath;
+        _settingsService.ObsidianExportEnabled = ObsidianExportEnabled;
 
         // Save Color Changes
         foreach (var row in TagColors)

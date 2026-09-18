@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
@@ -164,6 +164,29 @@
                 <Button
                     Text="Browse..."
                     Clicked="OnBrowseMtcClicked" />
+            </HorizontalStackLayout>
+
+            <!-- Obsidian Vault Export -->
+            <!-- The folder must sit INSIDE the vault: dataviewjs' dv.io.load() only resolves
+                 vault-relative paths, so anything outside is unreachable from a note. -->
+            <HorizontalStackLayout
+                Spacing="10"
+                VerticalOptions="Center">
+                <Label
+                    Text="Obsidian vault folder:"
+                    VerticalOptions="Center" />
+                <Label
+                    Text="{Binding ObsidianExportPath}"
+                    VerticalOptions="Center" />
+                <Button
+                    Text="Browse..."
+                    Clicked="OnBrowseVaultClicked" />
+                <Switch
+                    IsToggled="{Binding ObsidianExportEnabled}"
+                    VerticalOptions="Center" />
+                <Label
+                    Text="Export heatmap data"
+                    VerticalOptions="Center" />
             </HorizontalStackLayout>
         </VerticalStackLayout>
     </ScrollView>

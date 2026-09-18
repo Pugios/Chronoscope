@@ -1,4 +1,4 @@
-using SkiaSharp;
+﻿using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using System;
 using System.Collections.Generic;
@@ -45,6 +45,30 @@ public class SettingsService
             _ = SaveAsync();
         }
     }
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Obsidian Vault Export
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    public string ObsidianExportPath
+    {
+        get => _settings.ObsidianExportPath;
+        set
+        {
+            _settings.ObsidianExportPath = value;
+            _ = SaveAsync();
+        }
+    }
+
+    public bool ObsidianExportEnabled
+    {
+        get => _settings.ObsidianExportEnabled;
+        set
+        {
+            _settings.ObsidianExportEnabled = value;
+            _ = SaveAsync();
+        }
+    }
+
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Tag Colors
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

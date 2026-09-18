@@ -1,4 +1,4 @@
-using CsvHelper.Configuration.Attributes;
+﻿using CsvHelper.Configuration.Attributes;
 using LiveChartsCore;
 using LiveChartsCore.Kernel;
 using LiveChartsCore.Kernel.Sketches;
@@ -14,6 +14,11 @@ public class AppSettings
 {
     public Dictionary<string, string> TagColors { get; set; } = new();
     public string MtcExePath { get; set; } = @"C:\Program Files\ManicTime\mtc.exe";
+
+    // Where the heatmap JSON is written for Obsidian to pick up. Must be a folder INSIDE the
+    // vault - dataviewjs' dv.io.load() resolves vault-relative paths only.
+    public string ObsidianExportPath { get; set; } = "";
+    public bool ObsidianExportEnabled { get; set; } = false;
 }
 
 // Data Services
@@ -121,6 +126,15 @@ public class LegendItem
     public Thickness Indent { get; set; }
 }
 
+// One tag's daily totals in seconds, straight out of HeatmapAggregator and before any display
+// decision is made. Shared by the Statistics chart and the Obsidian vault export.
+public class TagDailyTotals
+{
+    public string Tag { get; init; } = "";
+    public Dictionary<DateTime, double> Days { get; init; } = new(); // midnight-keyed, seconds
+    public double TotalSeconds { get; init; }
+}
+
 // One tag's year of daily totals, shaped as a GitHub-contributions grid:
 // X = week column, Y = weekday (0 = Mon .. 6 = Sun, drawn top-down by an inverted Y axis).
 // The series and axes are built ready-made in StatisticsPage rather than in the DataTemplate,
@@ -138,7 +152,16 @@ public class TagYearHeatmap
     public Margin DrawMargin { get; init; } = new(0);
     public double ChartWidth { get; init; }
     public double ChartHeight { get; init; }
-    public Color[] ScaleSwatches { get; init; } = []; // the Less -> More strip, the ramp itself
+    public HeatmapScaleStep[] ScaleSteps { get; init; } = []; // the legend strip, the ramp itself
+}
+
+// One step of a heatmap's legend: the shade, and the span of tracked time it stands for.
+// The label is built from that tag's own quartiles, so it reads differently per tag and per year -
+// which is the point: a shade means "a heavy day for THIS tag", not a fixed number of hours.
+public class HeatmapScaleStep
+{
+    public Color Color { get; init; } = Colors.Transparent;
+    public string Label { get; init; } = ""; // "none", "≤45m", ">3h"
 }
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

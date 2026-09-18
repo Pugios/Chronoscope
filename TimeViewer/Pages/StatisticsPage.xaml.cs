@@ -1,4 +1,4 @@
-using LiveChartsCore;
+﻿using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.Drawing;
 using LiveChartsCore.Kernel;
@@ -16,8 +16,6 @@ public partial class StatisticsPage : ContentPage
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     double CellSize = 14;           // one day, drawn square
     double CellPadding = 2;         // gap between two day cells
-    int ShadeLevels = 4;            // GitHub's four non-empty shades; the empty one is index 0
-    double MinTrackedSeconds = 30;  // the same floor the pie and the timeline apply
     double WeekdayGutter = 28;      // room for the M/W/F labels left of the grid
     double MonthGutter = 20;        // room for the month labels above the grid
     double ChartEdge = 4;           // breathing room on the other two sides
@@ -28,14 +26,16 @@ public partial class StatisticsPage : ContentPage
 
     private readonly SettingsService _settingsService;
     private readonly DataService _dataService;
+    private readonly VaultExportService _vaultExportService;
 
-    public StatisticsPage(SettingsService settingsService, DataService dataService)
+    public StatisticsPage(SettingsService settingsService, DataService dataService, VaultExportService vaultExportService)
     {
         InitializeComponent();
         BindingContext = this;
 
         _settingsService = settingsService;
         _dataService = dataService;
+        _vaultExportService = vaultExportService;
     }
 
     protected override async void OnAppearing()
@@ -55,6 +55,17 @@ public partial class StatisticsPage : ContentPage
             // ManicTime export - only the refresh button pays for one.
             var apps = await _dataService.GetMergedDataAsync(forceReload);
             LoadYearHeatmaps(apps, _year);
+
+            // The chart is the point of this page; a vault that has moved or is on an unplugged
+            // drive must not take it down with it. The Export button reports failures out loud.
+            try
+            {
+                await _vaultExportService.ExportAsync(apps);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Vault export skipped: {ex.Message}");
+            }
         }
         catch (InvalidOperationException ex)
         {
@@ -86,6 +97,27 @@ public partial class StatisticsPage : ContentPage
     private async void OnNextYearClicked(object? sender, EventArgs e) => await ChangeYearAsync(1);
 
     private async void OnRefreshClicked(object? sender, EventArgs e) => await RefreshAsync(forceReload: true);
+
+    // The same export RefreshAsync runs silently, but here the outcome is the whole point, so
+    // every branch says something - including "you have not switched it on yet".
+    private async void OnExportClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            var apps = await _dataService.GetMergedDataAsync(forceReload: false);
+            string? path = await _vaultExportService.ExportAsync(apps);
+
+            if (path is null)
+                await DisplayAlertAsync("Vault Export",
+                    "No export folder is set. Choose one in Settings and enable the export.", "OK");
+            else
+                await DisplayAlertAsync("Vault Export", $"Written to:{Environment.NewLine}{path}", "OK");
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlertAsync("Vault Export Failed", ex.Message, "OK");
+        }
+    }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Bound State
@@ -154,23 +186,9 @@ public partial class StatisticsPage : ContentPage
         var firstCell = jan1.AddDays(-(((int)jan1.DayOfWeek + 6) % 7));
         int weekCount = ((dec31 - firstCell).Days / 7) + 1;
 
-        // Daily totals per tag, biggest tag first. Two deliberate agreements with MainPage: the
-        // >30s floor is the one the pie and the timeline use, and an activity crossing midnight
-        // counts wholly toward its Start day, which is how the pie groups a day.
-        var perTag = data
-            .Where(a => TimeSpan.Parse(a.Duration).TotalSeconds > MinTrackedSeconds)
-            .Where(a => a.Start.Year == year)
-            .GroupBy(a => a.Tag)
-            .Select(g => new
-            {
-                Tag = g.Key,
-                Days = g
-                    .GroupBy(a => a.Start.Date)
-                    .ToDictionary(d => d.Key, d => d.Sum(a => TimeSpan.Parse(a.Duration).TotalSeconds)),
-                Seconds = g.Sum(a => TimeSpan.Parse(a.Duration).TotalSeconds)
-            })
-            .OrderByDescending(t => t.Seconds)
-            .ToList();
+        // Daily totals per tag, biggest tag first. Shared with the Obsidian vault export so the
+        // two can never disagree - see HeatmapAggregator for the floor and the midnight rule.
+        var perTag = HeatmapAggregator.AggregateTagDays(data, year);
 
         if (perTag.Count == 0)
         {
@@ -186,8 +204,8 @@ public partial class StatisticsPage : ContentPage
         foreach (var tag in perTag)
         {
             string tagColor = _settingsService.GetTagColor(tag.Tag);
-            string[] ramp = _settingsService.BuildTagRamp(tagColor, ShadeLevels);
-            double[] thresholds = BucketThresholds(tag.Days.Values);
+            string[] ramp = _settingsService.BuildTagRamp(tagColor, HeatmapAggregator.ShadeLevels);
+            double[] thresholds = HeatmapAggregator.BucketThresholds(tag.Days.Values);
 
             // One point per day of the year, zero days included so they draw in the empty shade.
             // Days of the leading and trailing partial weeks that fall outside the year get no
@@ -197,7 +215,7 @@ public partial class StatisticsPage : ContentPage
             {
                 int offset = (day - firstCell).Days;
                 tag.Days.TryGetValue(day, out double seconds);
-                cells.Add(new WeightedPoint(offset / 7, offset % 7, Bucket(seconds, thresholds)));
+                cells.Add(new WeightedPoint(offset / 7, offset % 7, HeatmapAggregator.Bucket(seconds, thresholds)));
             }
 
             // Captured by the tooltip below, which reports the real duration rather than the
@@ -212,7 +230,7 @@ public partial class StatisticsPage : ContentPage
                 // The weight IS the bucket, and the stops are evenly spaced over 0..ShadeLevels,
                 // so weight k lands exactly on stop k: five discrete shades, not a gradient.
                 MinValue = 0,
-                MaxValue = ShadeLevels,
+                MaxValue = HeatmapAggregator.ShadeLevels,
                 PointPadding = new Padding(CellPadding),
                 XToolTipLabelFormatter = point => DateFor(firstCell, point).ToString("ddd dd MMM yyyy"),
                 YToolTipLabelFormatter = point =>
@@ -225,14 +243,14 @@ public partial class StatisticsPage : ContentPage
             {
                 Tag = tag.Tag,
                 TagColor = Color.Parse(tagColor),
-                TotalLabel = $"{TimeSpan.FromSeconds(tag.Seconds).TotalHours:F0}h over {tag.Days.Count} days",
+                TotalLabel = $"{TimeSpan.FromSeconds(tag.TotalSeconds).TotalHours:F0}h over {tag.Days.Count} days",
                 Series = [series],
                 XAxes = [BuildMonthAxis(firstCell, weekCount, year)],
                 YAxes = [BuildWeekdayAxis()],
                 DrawMargin = new Margin((float)WeekdayGutter, (float)MonthGutter, (float)ChartEdge, (float)ChartEdge),
                 ChartWidth = WeekdayGutter + (weekCount * CellSize) + ChartEdge,
                 ChartHeight = MonthGutter + (7 * CellSize) + ChartEdge,
-                ScaleSwatches = ramp.Select(Color.Parse).ToArray()
+                ScaleSteps = BuildScaleSteps(ramp, thresholds)
             });
         }
 
@@ -246,40 +264,21 @@ public partial class StatisticsPage : ContentPage
         firstCell.AddDays((point.Coordinate.SecondaryValue * 7) + point.Coordinate.PrimaryValue);
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    // Shade Buckets
+    // Legend
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    // Each tag is scaled against its own days, so a light-usage tag still shows a full light-to-dark
-    // range instead of staying uniformly pale. Quartiles rather than a linear split of the maximum,
-    // so one exceptional day cannot wash out the whole year.
 
-    private static double[] BucketThresholds(IEnumerable<double> dailySeconds)
+    // One swatch per shade, labelled with the span of tracked time it stands for, so the grid can
+    // be read without hovering every cell. Built from the same ramp and thresholds the cells use,
+    // so the strip cannot drift from what it describes.
+    private static HeatmapScaleStep[] BuildScaleSteps(string[] ramp, double[] thresholds)
     {
-        var sorted = dailySeconds.Where(s => s > 0).OrderBy(s => s).ToArray();
-        if (sorted.Length == 0) return [];
+        string[] labels = HeatmapAggregator.BucketLabels(thresholds);
 
-        return [Percentile(sorted, 0.25), Percentile(sorted, 0.50), Percentile(sorted, 0.75)];
+        return ramp
+            .Select((hex, i) => new HeatmapScaleStep { Color = Color.Parse(hex), Label = labels[i] })
+            .ToArray();
     }
 
-    private static double Percentile(double[] sorted, double fraction)
-    {
-        int index = (int)Math.Ceiling(fraction * sorted.Length) - 1;
-        return sorted[Math.Clamp(index, 0, sorted.Length - 1)];
-    }
-
-    // 0 for a day with nothing tracked, otherwise the first threshold the day fits under.
-    // Testing them in order keeps the buckets monotone even when the percentiles tie - a tag with
-    // one or two active days, or a run of identical days, needs no special case.
-    private int Bucket(double seconds, double[] thresholds)
-    {
-        if (seconds <= 0) return 0;
-
-        for (int i = 0; i < thresholds.Length; i++)
-        {
-            if (seconds <= thresholds[i]) return i + 1;
-        }
-
-        return ShadeLevels;
-    }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Axes
