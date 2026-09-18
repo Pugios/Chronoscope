@@ -5,6 +5,7 @@
     xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.Maui;assembly=LiveChartsCore.SkiaSharpView.Maui"
     xmlns:local="clr-namespace:TimeViewer"
     x:Class="TimeViewer.MainPage"
+    x:DataType="local:MainPage"
     x:Name="MainPageRoot">
 
     <Grid>
@@ -89,7 +90,7 @@
                                     ColumnDefinitions="Auto,*,Auto"
                                     ColumnSpacing="6"
                                     Padding="0,0,10,0"
-                                    WidthRequest="{Binding Source={x:Reference MainPageRoot}, Path=LegendColumnWidth}">
+                                    WidthRequest="{Binding Source={x:Reference MainPageRoot}, Path=LegendColumnWidth, x:DataType=local:MainPage}">
                                     <BoxView
                                         Grid.Column="0"
                                         Color="{Binding Color}"

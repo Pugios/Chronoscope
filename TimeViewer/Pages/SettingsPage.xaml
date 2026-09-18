@@ -7,6 +7,7 @@
     xmlns:sf="clr-namespace:Syncfusion.Maui.DataGrid;assembly=Syncfusion.Maui.DataGrid"
     xmlns:data="clr-namespace:Syncfusion.Maui.Data;assembly=Syncfusion.Maui.Data"
     x:Class="TimeViewer.SettingsPage"
+    x:DataType="local:SettingsPage"
     Title="Settings">
     <ContentPage.Resources>
         <local:DateSortComparer
@@ -150,7 +151,7 @@
                         MappingName="LastUsed" />
                 </sf:SfDataGrid.Columns>
             </sf:SfDataGrid>
-            
+
             <!-- ManicTime Path -->
             <HorizontalStackLayout
                 Spacing="10"

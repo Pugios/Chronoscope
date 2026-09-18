@@ -17,6 +17,12 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 
+		<!-- Compile bindings that set Source explicitly too. Only one does (the legend item
+		     template reaching back to the page for LegendColumnWidth); without this it stays
+		     a reflection-based binding and XamlC reports XC0025. Each such binding must carry
+		     its own x:DataType, because the x:DataType in scope would be the template's. -->
+		<MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
+
 		<!-- Display name -->
 		<ApplicationTitle>TimeViewer</ApplicationTitle>
 

@@ -5,6 +5,7 @@
     xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.Maui;assembly=LiveChartsCore.SkiaSharpView.Maui"
     xmlns:local="clr-namespace:TimeViewer"
     x:Class="TimeViewer.StatisticsPage"
+    x:DataType="local:StatisticsPage"
     Title="Statistics">
 
     <Grid

@@ -6,6 +6,7 @@
     xmlns:local="clr-namespace:TimeViewer"
     xmlns:sfgrid="clr-namespace:Syncfusion.Maui.DataGrid;assembly=Syncfusion.Maui.DataGrid"
     xmlns:data="clr-namespace:Syncfusion.Maui.Data;assembly=Syncfusion.Maui.Data"
+    x:DataType="local:ExplorerSettingsPage"
     Title="Explorer App Settings">
     <ContentPage.Resources>
         <local:DateSortComparer
