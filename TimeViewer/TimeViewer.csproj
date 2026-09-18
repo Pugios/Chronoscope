@@ -23,6 +23,11 @@
 		     its own x:DataType, because the x:DataType in scope would be the template's. -->
 		<MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
 
+		<!-- MAUI ships localised strings for its built-in controls in 121 satellite folders.
+		     This app is English-only and Windows-only. -->
+		<SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+
 		<!-- Display name -->
 		<ApplicationTitle>TimeViewer</ApplicationTitle>
 
@@ -94,5 +99,14 @@
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	</ItemGroup>
+
+	<!-- dotnet publish does NOT clear its output directory, it only overwrites. Files from an
+	     earlier publish linger forever, and TimeViewer.iss packages publish\* wholesale with
+	     recursesubdirs - so anything stale in there ships to users. That is how the folder had
+	     grown to 565MB against a real payload of ~315MB. -->
+	<Target Name="CleanPublishDirBeforePublish" BeforeTargets="PrepareForPublish"
+	        Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)')">
+		<RemoveDir Directories="$(PublishDir)" />
+	</Target>
 
 </Project>

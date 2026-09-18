@@ -44,22 +44,49 @@ public class DataService
     // Every tag the app knows about, from both places one can be created. tags.csv alone is not
     // enough: a tag invented inside an Explorer rule lives only in explorer-processes.csv, and
     // used to get a colour but never appear in any of the tag pickers.
-    public IReadOnlyList<string> KnownTags =>
+    //
+    // Cached: this is a property, so it reads as free at the call site, but it was running a LINQ
+    // pipeline and allocating a list on every access - and SettingsPage.OnAppearing touches it
+    // three times. Cleared wherever _cachedTags or _explorerRules are replaced.
+    private IReadOnlyList<string>? _knownTags;
+    public IReadOnlyList<string> KnownTags => _knownTags ??= BuildKnownTags();
+
+    private IReadOnlyList<string> BuildKnownTags() =>
         _cachedTags.Select(t => t.Tag)
             .Concat(_explorerRules.Select(r => r.Tag))
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .Distinct()
             .OrderBy(t => t)
-            .ToList();
+            .ToArray();
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Freshness
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // When the pipeline last completed. MainPage used to force a full reload on every OnAppearing,
+    // so returning from Settings or Statistics relaunched mtc.exe twice and re-parsed the whole
+    // export - for data that was usually seconds old. Edits do not need it either: both mutators
+    // invalidate the cache themselves. Only genuinely stale data does, which is what maxAge is for.
+    private DateTime _loadedAtUtc = DateTime.MinValue;
+
+    public TimeSpan DataAge =>
+        _loadedAtUtc == DateTime.MinValue ? TimeSpan.MaxValue : DateTime.UtcNow - _loadedAtUtc;
 
 
-    // Create _cachedAppsTags
-    public async Task<IReadOnlyList<AppsTagsTable>> GetMergedDataAsync(bool forceReload)
+    // Create _cachedAppsTags.
+    // forceReload always re-runs the pipeline; maxAge re-runs it only if the cache is older than
+    // that. Both null/false serves whatever is cached, which is what a day change wants.
+    public async Task<IReadOnlyList<AppsTagsTable>> GetMergedDataAsync(
+        bool forceReload = false, TimeSpan? maxAge = null)
     {
         await _dataGate.WaitAsync();
         try
         {
-            if (!forceReload && _cachedAppsTags.Count > 0)
+            bool reload =
+                _cachedAppsTags.Count == 0
+                || forceReload
+                || (maxAge is not null && DateTime.UtcNow - _loadedAtUtc > maxAge.Value);
+
+            if (!reload)
             {
                 return _cachedAppsTags;
             }
@@ -87,13 +114,15 @@ public class DataService
             // Read Explorer Process Rules
             List<ExplorerRule> explorerRules = await GetExplorerAsync();
 
-            // Apply Rules for explorer Apps and reduce down to AppsTagsTable
-            List<AppsTagsTable> reduced = ReduceTable(ApplyExplorerRules(appsTagsDocuments, explorerRules));
+            // Apply Rules for explorer Apps and reduce down to AppsTagsTable, in one pass
+            List<AppsTagsTable> reduced = ApplyRulesAndReduce(appsTagsDocuments, explorerRules);
 
             _cachedTags = tags;
             _cachedAppsTagsDocuments = appsTagsDocuments;
             _explorerRules = explorerRules;
             _cachedAppsTags = reduced;
+            _loadedAtUtc = DateTime.UtcNow;
+            _knownTags = null;
 
             return _cachedAppsTags;
         }
@@ -202,22 +231,33 @@ public class DataService
     // 3. Merge Tags into TimeTable by Process Name
     private static List<AppsTagsTable> MergeAppTags(List<AppsTable> apps, List<TagsTable> tags)
     {
-        // Merging Tags into Applications by Process Name
-        var merged = from app in apps
-                     join tag in tags on app.Process equals tag.Process into gj
-                     from subgroup in gj.DefaultIfEmpty()
-                     select new AppsTagsTable
-                     {
-                         Name = app.Name,
-                         Start = app.Start,
-                         End = app.End,
-                         Duration = app.Duration,
-                         Process = app.Process,
-                         OriginalProcess = app.Process,
-                         Tag = subgroup?.Tag ?? "No Clue"
-                     };
+        // A dictionary rather than a LINQ GroupJoin. Same left-join result, one lookup per row,
+        // and the output list can be presized instead of doubling its way to ~86k.
+        //
+        // It also removes a fan-out: GroupJoin emits one row PER match, so a duplicated Process in
+        // a hand-edited tags.csv silently duplicated every one of that process's rows and double
+        // counted its time. First entry wins here, matching ApplyTagChangesAsync, which updates
+        // the first match.
+        var tagByProcess = new Dictionary<string, string>(tags.Count);
+        foreach (var tag in tags)
+            tagByProcess.TryAdd(tag.Process, tag.Tag);
 
-        return merged.ToList();
+        var merged = new List<AppsTagsTable>(apps.Count);
+        foreach (var app in apps)
+        {
+            merged.Add(new AppsTagsTable
+            {
+                Name = app.Name,
+                Start = app.Start,
+                End = app.End,
+                Duration = app.Duration,
+                Process = app.Process,
+                OriginalProcess = app.Process,
+                Tag = tagByProcess.TryGetValue(app.Process, out var t) ? t : "No Clue"
+            });
+        }
+
+        return merged;
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -281,6 +321,8 @@ public class DataService
     {
         _cachedAppsTags = new();
         _cachedAppsTagsDocuments = new();
+        _loadedAtUtc = DateTime.MinValue;
+        _knownTags = null;
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -293,25 +335,32 @@ public class DataService
     // 2. Merge Documents into Applications/Tags by Start and End Time
     private static List<AppsTagsDocumentsTable> MergeAppsTagsDocuments(List<AppsTagsTable> datas, List<DocumentsTable> documents)
     {
-        // Merging Documents into Applications/Tags by Start and End Time
-        var merged = from data in datas
-                     join document in documents
-                     on new { data.Start, data.End } equals new { document.Start, document.End } into gj
-                     from subgroup in gj.DefaultIfEmpty()
-                     select new AppsTagsDocumentsTable
-                     {
-                         Name = data.Name,
-                         DocName = subgroup?.Name ?? "",
-                         Domain = subgroup?.Domain ?? "",
-                         Start = data.Start,
-                         End = data.End,
-                         Duration = data.Duration,
-                         Process = data.Process,
-                         OriginalProcess = data.OriginalProcess,
-                         Tag = data.Tag
-                     };
+        // Same treatment as MergeAppTags: a keyed lookup instead of a GroupJoin, so the result can
+        // be presized and two documents sharing one interval cannot fan a row out into two and
+        // double count it. First document wins.
+        var byInterval = new Dictionary<(DateTime Start, DateTime End), DocumentsTable>(documents.Count);
+        foreach (var document in documents)
+            byInterval.TryAdd((document.Start, document.End), document);
 
-        return merged.ToList();
+        var merged = new List<AppsTagsDocumentsTable>(datas.Count);
+        foreach (var data in datas)
+        {
+            byInterval.TryGetValue((data.Start, data.End), out var document);
+            merged.Add(new AppsTagsDocumentsTable
+            {
+                Name = data.Name,
+                DocName = document?.Name ?? "",
+                Domain = document?.Domain ?? "",
+                Start = data.Start,
+                End = data.End,
+                Duration = data.Duration,
+                Process = data.Process,
+                OriginalProcess = data.OriginalProcess,
+                Tag = data.Tag
+            });
+        }
+
+        return merged;
     }
 
     // 3. Read Explorer Process Rules
@@ -328,44 +377,78 @@ public class DataService
         return csv.GetRecords<ExplorerRule>().ToList();
     }
 
-    // 4. Apply Explorer Process Rules to rename Process and assign Tag
+    // 4. Apply Explorer Process Rules to rename Process and assign Tag.
+    // Public because ExplorerSettingsPage previews unsaved rules with it; it keeps the document
+    // columns, which is what that grid displays. The pipeline uses ApplyRulesAndReduce instead.
     public static List<AppsTagsDocumentsTable> ApplyExplorerRules(
         IReadOnlyList<AppsTagsDocumentsTable> data, IEnumerable<ExplorerRule> rules)
     {
-        // Indexed once instead of per row. This used to filter and sort the whole rule list inside
-        // the Select, so a load ran that scan once per row - ~86k times; now each row is one
-        // dictionary lookup into an already ordered array.
-        var rulesByProcess = rules
-            .GroupBy(r => r.Process)
-            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.Order).ToArray());
+        var index = IndexRules(rules);
+        var result = new List<AppsTagsDocumentsTable>(data.Count);
 
-        return data.Select(row =>
+        foreach (var row in data)
         {
-            // Find the first matching rule for this row
-            ExplorerRule? matchingRule = rulesByProcess.TryGetValue(row.Process, out var candidates)
-                ? Array.Find(candidates, r => Matches(row, r))
-                : null;
-
-            return new AppsTagsDocumentsTable
+            var rule = MatchRule(row, index);
+            result.Add(new AppsTagsDocumentsTable
             {
                 Name = row.Name,
                 Start = row.Start,
                 End = row.End,
                 Duration = row.Duration,
                 // If a rule matched, rename Process to "Process - Tag"
-                Process = matchingRule is not null
-                    ? $"{row.Process} - {matchingRule.Tag}"
-                    : row.Process,
+                Process = rule is not null ? $"{row.Process} - {rule.Tag}" : row.Process,
                 OriginalProcess = row.OriginalProcess,
                 // If a rule matched, use the rule's tag
-                Tag = matchingRule is not null
-                    ? matchingRule.Tag
-                    : row.Tag,
+                Tag = rule is not null ? rule.Tag : row.Tag,
                 DocName = row.DocName,
                 Domain = row.Domain
-            };
-        }).ToList();
+            });
+        }
+
+        return result;
     }
+
+    // 5. The pipeline's variant: applies the rules and drops the document columns in ONE pass.
+    // Doing it as ReduceTable(ApplyExplorerRules(...)) built a full intermediate list of ~86k
+    // AppsTagsDocumentsTable that nothing ever read - a whole extra copy of the dataset, and a
+    // whole extra GC generation's worth of garbage, on every load.
+    private static List<AppsTagsTable> ApplyRulesAndReduce(
+        List<AppsTagsDocumentsTable> data, List<ExplorerRule> rules)
+    {
+        var index = IndexRules(rules);
+        var result = new List<AppsTagsTable>(data.Count);
+
+        foreach (var row in data)
+        {
+            var rule = MatchRule(row, index);
+            result.Add(new AppsTagsTable
+            {
+                Name = row.Name,
+                Start = row.Start,
+                End = row.End,
+                Duration = row.Duration,
+                Process = rule is not null ? $"{row.Process} - {rule.Tag}" : row.Process,
+                OriginalProcess = row.OriginalProcess,
+                Tag = rule is not null ? rule.Tag : row.Tag
+            });
+        }
+
+        return result;
+    }
+
+    // Rules grouped by process and pre-sorted by Order, built once per call. Before this, the
+    // lookup filtered and sorted the entire rule list inside the per-row projection.
+    private static Dictionary<string, ExplorerRule[]> IndexRules(IEnumerable<ExplorerRule> rules) =>
+        rules
+            .GroupBy(r => r.Process)
+            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.Order).ToArray());
+
+    // The first rule for this row's process, in Order, whose pattern matches
+    private static ExplorerRule? MatchRule(
+        AppsTagsDocumentsTable row, Dictionary<string, ExplorerRule[]> index) =>
+        index.TryGetValue(row.Process, out var candidates)
+            ? Array.Find(candidates, r => Matches(row, r))
+            : null;
 
     // Column: which of the row's text fields the rule looks at. MatchType: how.
     private static bool Matches(AppsTagsDocumentsTable row, ExplorerRule rule)
@@ -387,18 +470,4 @@ public class DataService
         };
     }
 
-    // 5. Reduce AppsTagsDocumentsTable down to just AppsTagsTable to be used by PieGraph and such
-    private static List<AppsTagsTable> ReduceTable(List<AppsTagsDocumentsTable> data)
-    {
-        return data.Select(row => new AppsTagsTable
-        {
-            Name = row.Name,
-            Start = row.Start,
-            End = row.End,
-            Duration = row.Duration,
-            Process = row.Process,
-            OriginalProcess = row.OriginalProcess,
-            Tag = row.Tag
-        }).ToList();
-    }
 }

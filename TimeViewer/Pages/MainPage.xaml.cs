@@ -82,7 +82,12 @@ public partial class MainPage : ContentPage
     {
         base.OnAppearing();
         await _settingsService.LoadAsync();
-        await RefreshAsync(forceReload: true);
+
+        // Reload only if the data has gone stale, rather than unconditionally. Returning from
+        // Settings or Statistics used to relaunch mtc.exe twice and re-parse the entire export for
+        // data that was usually seconds old. Tag and rule edits do not rely on this: both mutators
+        // invalidate the cache, so the next call reloads regardless of age.
+        await RefreshAsync(maxAge: TimeSpan.FromMinutes(RefreshTime));
         _refreshTimer.Start();
     }
 
@@ -90,7 +95,7 @@ public partial class MainPage : ContentPage
     private bool _refreshQueued;
     private bool _queuedForceReload;
 
-    private async Task RefreshAsync(bool forceReload = false)
+    private async Task RefreshAsync(bool forceReload = false, TimeSpan? maxAge = null)
     {
         // A refresh already in flight used to make this return outright - but ChangeDayAsync has
         // already moved _currentDay by then, so a second click on ">" advanced the day while
@@ -115,7 +120,10 @@ public partial class MainPage : ContentPage
 
                 // Re-read every pass: a queued request is usually a day change
                 var day = _currentDay;
-                var apps = await _dataService.GetMergedDataAsync(reload);
+                var apps = await _dataService.GetMergedDataAsync(reload, maxAge);
+                // Only the first pass weighs staleness; a queued pass is a day change and
+                // redraws whatever that first pass just loaded.
+                maxAge = null;
                 LoadDayNestedPie(apps, day);
                 LoadDayTimeline(apps, day);
             }
