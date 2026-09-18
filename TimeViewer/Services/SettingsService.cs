@@ -1,9 +1,5 @@
 ﻿using SkiaSharp;
-using SkiaSharp.Views.Maui;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
 using System.Text.Json;
 
 namespace TimeViewer;
@@ -11,25 +7,110 @@ namespace TimeViewer;
 public class SettingsService
 {
     private readonly string _filePath = Path.Combine(FileSystem.AppDataDirectory, "settings.json");
-    private Random random = new Random();
     private AppSettings _settings = new();
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Persistence
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Every mutator below wants to persist immediately, and several of them are called in a loop -
+    // SettingsPage saves one colour per tag, CleanupColors deletes one per stale tag. Each used to
+    // fire an unawaited SaveAsync, so N writers raced on one file: File.WriteAllTextAsync opens
+    // with FileShare.Read, so the losers threw IOException. The unawaited ones swallowed it and
+    // the awaited one threw out of an async void handler, taking the app down.
+    //
+    // So writes are serialised behind a gate and a burst is coalesced into a single write: a
+    // mutator only marks the settings dirty, and whoever holds the gate writes whatever the
+    // latest state is. SaveAsync stays public and awaitable for callers that need a hard flush
+    // before navigating away.
+    private readonly SemaphoreSlim _saveGate = new(1, 1);
+    private int _savePending;
+
+    private void RequestSave()
+    {
+        // Already queued: the in-flight writer will pick up this change too
+        if (Interlocked.Exchange(ref _savePending, 1) == 1) return;
+        _ = DrainSavesAsync();
+    }
+
+    private async Task DrainSavesAsync()
+    {
+        await _saveGate.WaitAsync();
+        try
+        {
+            // Re-check inside the loop: anything marked dirty while we were writing gets its own
+            // pass, so the file always ends up matching the final in-memory state.
+            while (Interlocked.Exchange(ref _savePending, 0) == 1)
+                await WriteAsync();
+        }
+        catch (Exception ex)
+        {
+            // Nothing is awaiting this, so an escaping exception would be an unobserved crash.
+            // Losing a settings write is survivable; the next mutation writes the same state again.
+            Debug.WriteLine($"Deferred settings save failed: {ex.Message}");
+        }
+        finally
+        {
+            _saveGate.Release();
+        }
+    }
 
     public async Task LoadAsync()
     {
         Debug.WriteLine($"FileSystem.AppDataDirectory: {FileSystem.AppDataDirectory}");
-        if (!File.Exists(_filePath))
+
+        // Taking the gate flushes any queued write first, so a reload cannot read a file that is
+        // about to be overwritten and quietly roll back the change that queued it.
+        await _saveGate.WaitAsync();
+        try
         {
-            _settings = new AppSettings();
-            return;
+            if (!File.Exists(_filePath))
+            {
+                _settings = new AppSettings();
+                return;
+            }
+
+            var json = await File.ReadAllTextAsync(_filePath);
+            _settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
         }
-        var json = await File.ReadAllTextAsync(_filePath);
-        _settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+        catch (Exception ex)
+        {
+            // A truncated or hand-edited settings.json must not stop the app from starting
+            Debug.WriteLine($"Could not read settings, starting from defaults: {ex.Message}");
+            _settings = new AppSettings();
+        }
+        finally
+        {
+            _saveGate.Release();
+        }
     }
 
     public async Task SaveAsync()
     {
-        var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(_filePath, json);
+        Interlocked.Exchange(ref _savePending, 0);
+        await _saveGate.WaitAsync();
+        try
+        {
+            await WriteAsync();
+        }
+        finally
+        {
+            _saveGate.Release();
+        }
+    }
+
+    // Only ever called with _saveGate held. Writes beside the target and swaps it in, so a crash
+    // or a full disk mid-write leaves the previous settings intact rather than a truncated file.
+    private async Task WriteAsync()
+    {
+        Directory.CreateDirectory(FileSystem.AppDataDirectory);
+
+        var json = JsonSerializer.Serialize(_settings, JsonOptions);
+        var tempPath = _filePath + ".tmp";
+
+        await File.WriteAllTextAsync(tempPath, json);
+        File.Move(tempPath, _filePath, overwrite: true);
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -42,9 +123,10 @@ public class SettingsService
         set
         {
             _settings.MtcExePath = value;
-            _ = SaveAsync();
+            RequestSave();
         }
     }
+
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Obsidian Vault Export
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -55,7 +137,7 @@ public class SettingsService
         set
         {
             _settings.ObsidianExportPath = value;
-            _ = SaveAsync();
+            RequestSave();
         }
     }
 
@@ -65,7 +147,7 @@ public class SettingsService
         set
         {
             _settings.ObsidianExportEnabled = value;
-            _ = SaveAsync();
+            RequestSave();
         }
     }
 
@@ -79,16 +161,16 @@ public class SettingsService
     // Get or Create Color for a Tag
     public string GetTagColor(string tag)
     {
-        if (_settings.TagColors.TryGetValue(tag, out string color))
+        if (_settings.TagColors.TryGetValue(tag, out string? color))
             return color;
 
         // Auto-assign a random color and save it
         color = Color.FromRgb(
-            (byte) random.Next(0, 255),
-            (byte) random.Next(0, 255),
-            (byte) random.Next(0, 255)).ToHex();
+            (byte)Random.Shared.Next(256),
+            (byte)Random.Shared.Next(256),
+            (byte)Random.Shared.Next(256)).ToHex();
         _settings.TagColors[tag] = color;
-        _ = SaveAsync();
+        RequestSave();
         return color;
     }
 
@@ -97,7 +179,7 @@ public class SettingsService
     {
         var color = SKColor.Parse(hex);
         color.ToHsv(out float h, out float s, out float v);
-        v = Math.Min(100f, value);
+        v = Math.Clamp(value, 0f, 100f);
         return SKColor.FromHsv(h, s, v).ToString();
     }
 
@@ -129,12 +211,12 @@ public class SettingsService
     public void SetTagColor(string tag, string color)
     {
         _settings.TagColors[tag] = color;
-        _ = SaveAsync();
+        RequestSave();
     }
 
     public void DeleteTagColor(string tag)
     {
         _settings.TagColors.Remove(tag);
-        _ = SaveAsync();
+        RequestSave();
     }
 }

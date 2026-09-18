@@ -12,11 +12,10 @@ public partial class MainPage : ContentPage
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Parameters
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    int MaxRadialColumnWidth = 100;
-    int RefreshTime = 5; // in minutes
-    double GapAbsorbSeconds = 60; // timeline: same-process segments closer than this merge (sub-pixel anyway)
-    int SeparatorHours = 2; // timeline: clock-hour spacing of the X axis labels
-    int LabelEdgeClearanceMinutes = 20; // timeline: drop a label this close to either end of the axis
+    const int RefreshTime = 5; // in minutes
+    const double GapAbsorbSeconds = 60; // timeline: same-process segments closer than this merge (sub-pixel anyway)
+    const int SeparatorHours = 2; // timeline: clock-hour spacing of the X axis labels
+    const int LabelEdgeClearanceMinutes = 20; // timeline: drop a label this close to either end of the axis
 
     // Pie diameter, which doubles as the legend's height cap so the two can never drift apart
     public double PieSize { get; } = 500;
@@ -26,12 +25,12 @@ public partial class MainPage : ContentPage
     // legend's item containers - without that, anything below 40 clips the bottom of every row.
     public double LegendItemHeight { get; } = 24;
     public double LegendColumnWidth { get; } = 230;
-    double LegendMargin = 10; // matches the CollectionView's Margin in the XAML
+    const double LegendMargin = 10; // matches the CollectionView's Margin in the XAML
     // Kept free either side of the centered block, so extra legend columns never grow under the
     // tool buttons overlaid at the top right
-    double LegendSideGutter = 70;
-    double LegendScrollBarHeight = 14; // room for the horizontal scrollbar when columns overflow
-    double ReservedPageHeight = 200; // timeline row plus the day controls beneath the pie
+    const double LegendSideGutter = 70;
+    const double LegendScrollBarHeight = 14; // room for the horizontal scrollbar when columns overflow
+    const double ReservedPageHeight = 200; // timeline row plus the day controls beneath the pie
     // Gap either side of the timeline bar. It is applied to the chart itself, so both edges keep
     // the same gap at any window width.
     public Thickness TimelineMargin { get; } = new Thickness(70, 0, 70, 0);
@@ -88,26 +87,56 @@ public partial class MainPage : ContentPage
     }
 
     private bool _isRefreshing;
+    private bool _refreshQueued;
+    private bool _queuedForceReload;
+
     private async Task RefreshAsync(bool forceReload = false)
     {
-        if (_isRefreshing) return;
+        // A refresh already in flight used to make this return outright - but ChangeDayAsync has
+        // already moved _currentDay by then, so a second click on ">" advanced the day while
+        // nothing redrew, leaving the label and the pie a day behind the actual state.
+        // The request is queued instead and picked up by the loop below.
+        if (_isRefreshing)
+        {
+            _refreshQueued = true;
+            _queuedForceReload |= forceReload;
+            return;
+        }
+
         _isRefreshing = true;
         try
         {
-            var apps = await _dataService.GetMergedDataAsync(forceReload);
-            await LoadDayNestedPieAsync(apps, _currentDay);
-            await LoadDayTimelineAsync(apps, _currentDay);
+            do
+            {
+                _refreshQueued = false;
+                bool reload = forceReload || _queuedForceReload;
+                forceReload = false;
+                _queuedForceReload = false;
+
+                // Re-read every pass: a queued request is usually a day change
+                var day = _currentDay;
+                var apps = await _dataService.GetMergedDataAsync(reload);
+                LoadDayNestedPie(apps, day);
+                LoadDayTimeline(apps, day);
+            }
+            while (_refreshQueued);
         }
         catch (InvalidOperationException ex)
         {
             await DisplayAlertAsync("ManicTime Error", ex.Message, "OK");
+        }
+        catch (Exception ex)
+        {
+            // OnAppearing is async void, so anything unhandled here takes the whole app down.
+            // A bad colour hex in settings.json reaching SKColor.Parse is the realistic one.
+            await DisplayAlertAsync("Could not draw the day", ex.Message, "OK");
         }
         finally
         {
             _isRefreshing = false;
         }
     }
-    
+
     private DateTime _currentDay = DateTime.Today;
     private async Task ChangeDayAsync(int deltaDays)
     {
@@ -162,7 +191,7 @@ public partial class MainPage : ContentPage
     {
         await Shell.Current.GoToAsync(nameof(StatisticsPage));
     }
-    
+
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Graph
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -308,38 +337,41 @@ public partial class MainPage : ContentPage
     // Keyed by process, which assumes one Tag per Process (true for AppsTagsTable) - last write wins.
     private readonly Dictionary<string, string> _processColors = new();
 
-    private Task LoadDayNestedPieAsync(List<AppsTagsTable> data, DateTime day)
+    private void LoadDayNestedPie(IReadOnlyList<AppsTagsTable> data, DateTime day)
     {
-        _currentDay = day;
         DisplayDay = day.ToString("ddd dd-MM-yyyy");
         _processColors.Clear();
 
-        // If no data or no data for the day, clear the graph and legend
-        if (!data.Any() || !data.Select(a => a.Start.Date).Contains(day))
+        // One pass over the dataset instead of two: this used to scan the whole thing just to
+        // decide whether to bail, then scan it again to group.
+        var dayRows = data.Where(a => a.Start.Date == day).ToList();
+
+        // If no data for the day, clear the graph and legend. The timeline is left alone -
+        // LoadDayTimeline runs straight after this and owns that collection.
+        if (dayRows.Count == 0)
         {
             PieDataCollection = [];
             LegendItems = [];
-            TimelineDataCollection = [];
-            return Task.CompletedTask;
+            return;
         }
 
         // Build relevant Apps Table! Of the day, Grouped by Tag and by Process, both ordered by
         // time spent descending, so the pie and the legend lead with the biggest tag.
-        var nested = data
-            .Where(a => a.Start.Date == day && TimeSpan.Parse(a.Duration).TotalSeconds > 30)
+        var nested = dayRows
+            .Where(a => a.DurationSeconds > HeatmapAggregator.MinTrackedSeconds)
             .GroupBy(a => a.Tag)
             .Select(a => new
             {
                 // TAGS
                 Tag = a.Key,
-                Seconds = a.Sum(b => TimeSpan.Parse(b.Duration).TotalSeconds),
+                Seconds = a.Sum(b => b.DurationSeconds),
                 Processes = a
                 .GroupBy(b => b.Process)
                 .Select(b => new
                 {
                     // PROCESSES
                     Process = b.Key,
-                    Seconds = b.Sum(b => TimeSpan.Parse(b.Duration).TotalSeconds)
+                    Seconds = b.Sum(b => b.DurationSeconds)
                 })
                 .OrderByDescending(b => b.Seconds)
                 .ToList()
@@ -415,15 +447,13 @@ public partial class MainPage : ContentPage
         LegendItems = legendItemList.ToArray();
 
         Debug.WriteLine($"Total series added: {pieDataList.Count}");
-
-        return Task.CompletedTask;
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Timeline Bar
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    private Task LoadDayTimelineAsync(List<AppsTagsTable> data, DateTime day)
+    private void LoadDayTimeline(IReadOnlyList<AppsTagsTable> data, DateTime day)
     {
         // Today shows the rolling last 24h ending right now, any other day shows that day
         // 00:00-24:00. Both windows are exactly 86400s, so the axis is always 0..86400.
@@ -441,11 +471,12 @@ public partial class MainPage : ContentPage
         DateTime windowStart = windowEnd.AddDays(-1);
         _timelineWindowStart = windowStart;
 
-        // Everything overlapping the window, clamped to it. The >30s test uses the original
-        // Duration, so the bar and the pie agree on which activities exist.
+        // Everything overlapping the window, clamped to it. The floor is tested against the
+        // unclamped row, and against the same HeatmapAggregator.MinTrackedSeconds the pie and the
+        // heatmap use, so all three agree on which activities exist.
         var slices = data
             .Where(a => a.End > windowStart && a.Start < windowEnd)
-            .Where(a => TimeSpan.Parse(a.Duration).TotalSeconds > 30)
+            .Where(a => a.DurationSeconds > HeatmapAggregator.MinTrackedSeconds)
             .Select(a => new TimelineSlice(
                 a.Process,
                 a.Tag,
@@ -551,8 +582,6 @@ public partial class MainPage : ContentPage
         TimelineDataCollection = timelineList.ToArray();
 
         Debug.WriteLine($"Timeline segments: {timelineList.Count}");
-
-        return Task.CompletedTask;
     }
 
     // A process the pie never colored (only possible in the previous-day part of the rolling

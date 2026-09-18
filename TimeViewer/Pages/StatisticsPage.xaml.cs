@@ -71,6 +71,11 @@ public partial class StatisticsPage : ContentPage
         {
             await DisplayAlertAsync("ManicTime Error", ex.Message, "OK");
         }
+        catch (Exception ex)
+        {
+            // OnAppearing is async void, so anything unhandled here takes the whole app down
+            await DisplayAlertAsync("Could not draw the heatmaps", ex.Message, "OK");
+        }
         finally
         {
             _isRefreshing = false;
@@ -174,7 +179,7 @@ public partial class StatisticsPage : ContentPage
     // Year Heatmaps
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    private void LoadYearHeatmaps(List<AppsTagsTable> data, int year)
+    private void LoadYearHeatmaps(IReadOnlyList<AppsTagsTable> data, int year)
     {
         DisplayYear = year.ToString();
 

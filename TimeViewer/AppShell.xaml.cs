@@ -1,6 +1,4 @@
-﻿using TimeViewer;
-
-namespace TimeViewer
+﻿namespace TimeViewer
 {
     public partial class AppShell : Shell
     {

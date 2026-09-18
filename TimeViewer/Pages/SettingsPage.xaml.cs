@@ -1,11 +1,8 @@
-﻿using CommunityToolkit.Maui.Alerts;
-using CommunityToolkit.Maui.Storage;
+﻿using CommunityToolkit.Maui.Storage;
 using Maui.ColorPicker;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
-using Syncfusion.Maui.Data;
 using System.ComponentModel;
-using System.Diagnostics;
 
 namespace TimeViewer;
 
@@ -59,11 +56,9 @@ public partial class SettingsPage : ContentPage
 
     private void LoadColors()
     {
-        var explorerTags = _dataService.ExplorerRules
-          .Select(r => r.Tag)
-          .Distinct();
-
-        foreach (var tag in explorerTags)
+        // Make sure every known tag has a colour before the swatches are built, including tags
+        // that exist only inside an Explorer rule and never reached tags.csv
+        foreach (var tag in _dataService.KnownTags)
             _settingsService.GetTagColor(tag);
 
         TagColors = _settingsService.TagColors.Select(a =>
@@ -103,10 +98,7 @@ public partial class SettingsPage : ContentPage
 
     private void CleanupColors()
     {
-        var usedTags = _dataService.CachedTags
-            .Select(t => t.Tag)
-            .Concat(_dataService.ExplorerRules.Select(r => r.Tag))
-            .Distinct();
+        var usedTags = _dataService.KnownTags;
         string[] exceptions = ["Remaining", "No Clue"];
 
         var tagsToRemove = TagColors
@@ -134,13 +126,13 @@ public partial class SettingsPage : ContentPage
 
     private async Task LoadProcessesAsync()
     {
-        List<AppsTagsTable> data = await _dataService.GetMergedDataAsync(forceReload: false);
+        IReadOnlyList<AppsTagsTable> data = await _dataService.GetMergedDataAsync(forceReload: false);
 
         ProcessRows = data
             .GroupBy(a => a.Process)
             .Select(g =>
             {
-                var totalTime = TimeSpan.FromSeconds(g.Sum(a => TimeSpan.Parse(a.Duration).TotalSeconds));
+                var totalTime = TimeSpan.FromSeconds(g.Sum(a => a.DurationSeconds));
                 return new ProcessRow
                 {
                     Process = g.Key,
@@ -175,15 +167,13 @@ public partial class SettingsPage : ContentPage
     }
     private void LoadAvailableTags()
     {
-        AvailableTags = _dataService.CachedTags
-            .Select(t => t.Tag)
-            .Distinct()
-            .OrderBy(t => t)
-            .ToArray();
+        // KnownTags, not CachedTags: a tag invented inside an Explorer rule lives only in
+        // explorer-processes.csv, and used to be missing from this picker
+        AvailableTags = _dataService.KnownTags.ToArray();
     }
 
     // Selected Tag within Picker
-    private string _selectedTag;
+    private string _selectedTag = "";
     public string SelectedTag
     {
         get => _selectedTag;
@@ -194,7 +184,7 @@ public partial class SettingsPage : ContentPage
         }
     }
 
-    private string _newTag;
+    private string _newTag = "";
     public string NewTag
     {
         get => _newTag;
@@ -263,7 +253,7 @@ public partial class SettingsPage : ContentPage
     // ManicTime Path
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    private string _mtcExePath;
+    private string _mtcExePath = "";
     public string MtcExePath
     {
         get => _mtcExePath;
@@ -337,7 +327,8 @@ public partial class SettingsPage : ContentPage
         _settingsService.ObsidianExportPath = ObsidianExportPath;
         _settingsService.ObsidianExportEnabled = ObsidianExportEnabled;
 
-        // Save Color Changes
+        // Save Color Changes. Each of these only marks the settings dirty; the single awaited
+        // SaveAsync below is what actually writes, so leaving this page always lands one file.
         foreach (var row in TagColors)
         {
             _settingsService.SetTagColor(row.Tag, row.Color.ToHex());
@@ -362,9 +353,9 @@ public partial class SettingsPage : ContentPage
 // ====================================================
 public class TagColorRow : INotifyPropertyChanged
 {
-    public string Tag { get; set; }
+    public required string Tag { get; set; }
 
-    private Color _color;
+    private Color _color = Colors.Transparent;
     public Color Color
     {
         get => _color;
@@ -391,7 +382,7 @@ public class TagColorRow : INotifyPropertyChanged
     public bool IgnoreFirstPickerChange { get; set; } = true;
 
 
-    public event PropertyChangedEventHandler PropertyChanged;
+    public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged(string name) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
@@ -400,9 +391,9 @@ public class TagColorRow : INotifyPropertyChanged
 // ====================================================
 public class ProcessRow : INotifyPropertyChanged, IUsageStats
 {
-    public string Process { get; set; }
-    public string RootProcess { get; set; } 
-    private string _tag;
+    public required string Process { get; set; }
+    public required string RootProcess { get; set; }
+    private string _tag = "";
     public string Tag
     {
         get => _tag;
@@ -413,8 +404,8 @@ public class ProcessRow : INotifyPropertyChanged, IUsageStats
             OnPropertyChanged(nameof(Tag));
         }
     }
-    public string TotalTime { get; set; }
-    public string LastUsed { get; set; }
+    public required string TotalTime { get; set; }
+    public required string LastUsed { get; set; }
     // For Sorting
     public double TotalSeconds { get; set; }
     public DateTime LastUsedDate { get; set; }

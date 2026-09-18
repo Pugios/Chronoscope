@@ -35,23 +35,21 @@ public partial class ExplorerSettingsPage : ContentPage
 
     // Working copy of rules includes pending changes and is used for reordering
     private List<ExplorerRule> _workingRules = new();
-    
+
     private void LoadPage()
     {
         PageTitle.Text = _processName;
 
-        // Load Tags for dropdown
-        AvailableTags = _dataService.CachedTags
-            .Select(t => t.Tag)
-            .Distinct()
-            .OrderBy(t => t)
-            .ToArray();
+        // Load Tags for dropdown. KnownTags covers tags that only exist in an Explorer rule.
+        AvailableTags = _dataService.KnownTags.ToArray();
 
-
-        // Load existing rules for this process
+        // Load existing rules for this process, as COPIES. Holding the DataService's own
+        // instances meant RefreshRulesDisplay's Order reassignment wrote straight through to the
+        // live rules, so reordering with the arrows and then pressing Cancel still reordered them.
         _workingRules = _dataService.ExplorerRules
             .Where(r => r.Process == _processName)
             .OrderBy(r => r.Order)
+            .Select(r => new ExplorerRule(r))
             .ToList();
 
         RefreshRulesDisplay();
@@ -81,7 +79,7 @@ public partial class ExplorerSettingsPage : ContentPage
             .GroupBy(r => (r.Process, r.Name, r.DocName, r.Domain, r.Tag))
             .Select(g =>
             {
-                var totalTime = TimeSpan.FromSeconds(g.Sum(r => TimeSpan.Parse(r.Duration).TotalSeconds));
+                var totalTime = TimeSpan.FromSeconds(g.Sum(r => r.DurationSeconds));
                 var lastUsed = g.Max(r => r.End);
                 return new ExplorerPreviewRow
                 {
@@ -110,9 +108,9 @@ public partial class ExplorerSettingsPage : ContentPage
     public string SelectedColumn
     {
         get => _selectedColumn;
-        set { 
-            _selectedColumn = value; 
-            OnPropertyChanged(nameof(SelectedColumn)); 
+        set {
+            _selectedColumn = value;
+            OnPropertyChanged(nameof(SelectedColumn));
         }
     }
     private void OnColumnCheckedChanged(object? sender, CheckedChangedEventArgs e)
@@ -126,9 +124,9 @@ public partial class ExplorerSettingsPage : ContentPage
     public string SelectedMatchType
     {
         get => _selectedMatchType;
-        set { 
-            _selectedMatchType = value; 
-            OnPropertyChanged(nameof(SelectedMatchType)); 
+        set {
+            _selectedMatchType = value;
+            OnPropertyChanged(nameof(SelectedMatchType));
         }
     }
 
@@ -150,9 +148,9 @@ public partial class ExplorerSettingsPage : ContentPage
     public string[] AvailableTags
     {
         get => _availableTags;
-        set { 
-            _availableTags = value; 
-            OnPropertyChanged(nameof(AvailableTags)); 
+        set {
+            _availableTags = value;
+            OnPropertyChanged(nameof(AvailableTags));
         }
     }
 
@@ -175,7 +173,7 @@ public partial class ExplorerSettingsPage : ContentPage
     private void OnAddRuleClicked(object? sender, EventArgs e)
     {
         var tagToUse = string.IsNullOrWhiteSpace(_newTag) ? _selectedTag : _newTag;
-        
+
         if (string.IsNullOrWhiteSpace(_pattern) || string.IsNullOrWhiteSpace(tagToUse))
             return;
 
@@ -259,13 +257,13 @@ public partial class ExplorerSettingsPage : ContentPage
 // ====================================================
 public class ExplorerPreviewRow : IUsageStats
 {
-    public string Process { get; set; }
-    public string Name { get; set; }
-    public string DocName { get; set; }
-    public string Domain { get; set; }
-    public string Tag { get; set; }
-    public string TotalTime { get; set; }
-    public string LastUsed { get; set; }
+    public required string Process { get; set; }
+    public required string Name { get; set; }
+    public required string DocName { get; set; }
+    public required string Domain { get; set; }
+    public required string Tag { get; set; }
+    public required string TotalTime { get; set; }
+    public required string LastUsed { get; set; }
     // For Sorting
     public double TotalSeconds { get; set; }
     public DateTime LastUsedDate { get; set; }

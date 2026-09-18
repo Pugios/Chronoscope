@@ -1,8 +1,6 @@
 ﻿using CsvHelper;
-using System.Data;
 using System.Diagnostics;
 using System.Globalization;
-using System.Text.Json;
 
 namespace TimeViewer;
 
@@ -11,7 +9,16 @@ public class DataService
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Reading Tables (Tags & Time)
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // One gate around every read AND every mutation. The refresh timer can fire while a settings
+    // page is saving, so the mutators have to hold it too - otherwise they rewrite a CSV and
+    // mutate _cachedTags / _explorerRules underneath a reload that is halfway through using them.
     private readonly SemaphoreSlim _dataGate = new(1, 1);
+
+    // How long mtc.exe gets before it is treated as hung. A full export takes a few seconds;
+    // anything past this is a stuck process, and without a bound the await here would never
+    // return and the page would sit blank forever.
+    private static readonly TimeSpan MtcTimeout = TimeSpan.FromMinutes(2);
+
     private static readonly string TagsPath = Path.Combine(FileSystem.AppDataDirectory, "tags.csv");
     private static readonly string ExplorerPath = Path.Combine(FileSystem.AppDataDirectory, "explorer-processes.csv");
     private readonly SettingsService _settingsService;
@@ -34,38 +41,59 @@ public class DataService
     private List<ExplorerRule> _explorerRules = new();
     public IReadOnlyList<ExplorerRule> ExplorerRules => _explorerRules;
 
+    // Every tag the app knows about, from both places one can be created. tags.csv alone is not
+    // enough: a tag invented inside an Explorer rule lives only in explorer-processes.csv, and
+    // used to get a colour but never appear in any of the tag pickers.
+    public IReadOnlyList<string> KnownTags =>
+        _cachedTags.Select(t => t.Tag)
+            .Concat(_explorerRules.Select(r => r.Tag))
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Distinct()
+            .OrderBy(t => t)
+            .ToList();
+
 
     // Create _cachedAppsTags
-    public async Task<List<AppsTagsTable>> GetMergedDataAsync(bool forceReload)
+    public async Task<IReadOnlyList<AppsTagsTable>> GetMergedDataAsync(bool forceReload)
     {
         await _dataGate.WaitAsync();
         try
         {
-            if (!forceReload && _cachedAppsTags.Any())
+            if (!forceReload && _cachedAppsTags.Count > 0)
             {
                 return _cachedAppsTags;
             }
 
+            // Everything below builds into locals and only lands in the cache fields once the
+            // whole pipeline has succeeded. Assigning as it went meant a failure partway through
+            // (mtc.exe dying between the two exports) left _cachedAppsTags holding the
+            // intermediate table - tagged, but with no Explorer rules applied. Being non-empty,
+            // it then satisfied the check above and was served as finished data from then on.
+
             // Read Tags
             List<TagsTable> tags = await GetTagTableAsync();
-            _cachedTags = tags;
 
             // Read Time Table from ManicTime
             List<AppsTable> apps = await ExportTimeTableAsync();
 
             // Merge them by Process Name
-            _cachedAppsTags = MergeAppTags(apps, tags);
+            List<AppsTagsTable> appsTags = MergeAppTags(apps, tags);
 
             // Read Documents Table from ManicTime
             List<DocumentsTable> documents = await ExportDocumentsTableAsync();
             // Merge by Start and End Time
-            _cachedAppsTagsDocuments = MergeAppsTagsDocuments(_cachedAppsTags, documents);
+            List<AppsTagsDocumentsTable> appsTagsDocuments = MergeAppsTagsDocuments(appsTags, documents);
 
             // Read Explorer Process Rules
-            _explorerRules = await GetExplorerAsync();
+            List<ExplorerRule> explorerRules = await GetExplorerAsync();
 
             // Apply Rules for explorer Apps and reduce down to AppsTagsTable
-            _cachedAppsTags = ReduceTable(ApplyExplorerRules(_cachedAppsTagsDocuments, _explorerRules));
+            List<AppsTagsTable> reduced = ReduceTable(ApplyExplorerRules(appsTagsDocuments, explorerRules));
+
+            _cachedTags = tags;
+            _cachedAppsTagsDocuments = appsTagsDocuments;
+            _explorerRules = explorerRules;
+            _cachedAppsTags = reduced;
 
             return _cachedAppsTags;
         }
@@ -90,34 +118,84 @@ public class DataService
     }
 
     // 2. Read Time Table from ManicTime
-    private async Task<List<AppsTable>> ExportTimeTableAsync()
+    private Task<List<AppsTable>> ExportTimeTableAsync() =>
+        RunMtcExportAsync<AppsTable>("ManicTime/Applications", "manictime-export.csv", "data");
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Run one mtc.exe export and read back what it wrote.
+    //
+    // The two exports differ only in the timeline they ask for, so the failure handling lives
+    // here once. Three things it has to get right:
+    //  - Delete the target first. mtc.exe writes into the cache directory, so a failed run used
+    //    to leave the previous run's file in place and the reader happily returned stale data as
+    //    if it were fresh.
+    //  - Check the exit code. A bad path throws on Start and is caught below, but mtc.exe
+    //    refusing the request exits non-zero and says so only on stderr, which was discarded.
+    //  - Bound the wait, and kill the process if it overruns.
+    private async Task<List<T>> RunMtcExportAsync<T>(string timeline, string cacheFileName, string what)
+        where T : class
     {
-        string tempCsvPath = Path.Combine(FileSystem.CacheDirectory, "manictime-export.csv");
+        Directory.CreateDirectory(FileSystem.CacheDirectory);
+        string tempCsvPath = Path.Combine(FileSystem.CacheDirectory, cacheFileName);
 
         try
         {
+            if (File.Exists(tempCsvPath)) File.Delete(tempCsvPath);
+
             using Process process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     WindowStyle = ProcessWindowStyle.Hidden,
                     FileName = _settingsService.MtcExePath,
-                    Arguments = $"export ManicTime/Applications \"{tempCsvPath}\"",
-                    CreateNoWindow = true
+                    Arguments = $"export {timeline} \"{tempCsvPath}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardError = true
                 }
             };
 
             process.Start();
-            await process.WaitForExitAsync().ConfigureAwait(false);
+
+            // Read stderr while it runs: a full pipe would block mtc.exe and deadlock the wait
+            Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+
+            using var timeout = new CancellationTokenSource(MtcTimeout);
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new TimeoutException(
+                    $"mtc.exe did not finish within {MtcTimeout.TotalMinutes:0} minutes.");
+            }
+
+            if (process.ExitCode != 0)
+            {
+                string stderr = (await stderrTask.ConfigureAwait(false)).Trim();
+                throw new InvalidOperationException(
+                    $"mtc.exe exited with code {process.ExitCode}."
+                    + (stderr.Length > 0 ? Environment.NewLine + stderr : ""));
+            }
+
+            if (!File.Exists(tempCsvPath))
+            {
+                throw new FileNotFoundException(
+                    $"mtc.exe reported success but wrote no file to:{Environment.NewLine}{tempCsvPath}");
+            }
 
             using var reader = new StreamReader(tempCsvPath);
             using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-            return csv.GetRecords<AppsTable>().ToList();
+            return csv.GetRecords<T>().ToList();
         }
         catch (Exception ex)
         {
             throw new InvalidOperationException(
-                $"Could not export data from ManicTime.\nCheck the mtc.exe path in Settings:\n{_settingsService.MtcExePath}", ex);
+                $"Could not export {what} from ManicTime.{Environment.NewLine}"
+                + $"Check the mtc.exe path in Settings:{Environment.NewLine}{_settingsService.MtcExePath}"
+                + $"{Environment.NewLine}{Environment.NewLine}{ex.Message}", ex);
         }
     }
 
@@ -146,20 +224,61 @@ public class DataService
     // Allow User to Edit Tags and Save Back to CSV
     public async Task ApplyTagChangesAsync(List<TagsTable> updates)
     {
-        foreach (var update in updates)
+        await _dataGate.WaitAsync();
+        try
         {
-            var existing = _cachedTags.FirstOrDefault(t => t.Process == update.Process);
-            if (existing is not null)
-                existing.Tag = update.Tag;
-            else
-                _cachedTags.Add(new TagsTable { Process = update.Process, Tag = update.Tag });
+            foreach (var update in updates)
+            {
+                var existing = _cachedTags.FirstOrDefault(t => t.Process == update.Process);
+                if (existing is not null)
+                    existing.Tag = update.Tag;
+                else
+                    _cachedTags.Add(new TagsTable { Process = update.Process, Tag = update.Tag });
+            }
+
+            using (var writer = new StreamWriter(TagsPath))
+            using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+            {
+                await csv.WriteRecordsAsync(_cachedTags);
+            }
+
+            InvalidateDerived();
         }
+        finally
+        {
+            _dataGate.Release();
+        }
+    }
 
-        using var writer = new StreamWriter(TagsPath);
-        using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-        await csv.WriteRecordsAsync(_cachedTags);
+    // Replace Explorer Rules
+    public async Task ReplaceExplorerRulesAsync(string process, List<ExplorerRule> newRules)
+    {
+        await _dataGate.WaitAsync();
+        try
+        {
+            _explorerRules.RemoveAll(r => r.Process == process);
+            _explorerRules.AddRange(newRules);
 
-        // Invalidate derived caches so next GetMergedDataAsync reloads fresh data
+            using (var writer = new StreamWriter(ExplorerPath))
+            using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+            {
+                await csv.WriteRecordsAsync(_explorerRules);
+            }
+
+            InvalidateDerived();
+        }
+        finally
+        {
+            _dataGate.Release();
+        }
+    }
+
+    // Both cached tables are built FROM tags.csv and explorer-processes.csv, so editing either
+    // file makes both stale. Every mutator routes through here rather than remembering to clear
+    // the right pair - the Explorer rules used to skip this, which left the Settings grid and the
+    // Statistics page showing rows built with the rules the user had just replaced.
+    private void InvalidateDerived()
+    {
         _cachedAppsTags = new();
         _cachedAppsTagsDocuments = new();
     }
@@ -168,36 +287,8 @@ public class DataService
     // Explorer Processes
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // 1. Read Documents Table from ManicTime
-    private async Task<List<DocumentsTable>> ExportDocumentsTableAsync()
-    {
-        string tempCsvPath = Path.Combine(FileSystem.CacheDirectory, "manictime-documents-export.csv");
-
-        try
-        {
-            using Process process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    FileName = _settingsService.MtcExePath,
-                    Arguments = $"export ManicTime/Documents \"{tempCsvPath}\"",
-                    CreateNoWindow = true
-                }
-            };
-
-            process.Start();
-            await process.WaitForExitAsync().ConfigureAwait(false);
-
-            using var reader = new StreamReader(tempCsvPath);
-            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-            return csv.GetRecords<DocumentsTable>().ToList();
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException(
-                $"Could not export documents from ManicTime.\nCheck the mtc.exe path in Settings:\n{_settingsService.MtcExePath}", ex);
-        }
-    }
+    private Task<List<DocumentsTable>> ExportDocumentsTableAsync() =>
+        RunMtcExportAsync<DocumentsTable>("ManicTime/Documents", "manictime-documents-export.csv", "documents");
 
     // 2. Merge Documents into Applications/Tags by Start and End Time
     private static List<AppsTagsDocumentsTable> MergeAppsTagsDocuments(List<AppsTagsTable> datas, List<DocumentsTable> documents)
@@ -238,31 +329,22 @@ public class DataService
     }
 
     // 4. Apply Explorer Process Rules to rename Process and assign Tag
-    public static List<AppsTagsDocumentsTable> ApplyExplorerRules(List<AppsTagsDocumentsTable> data, List<ExplorerRule> rules)
+    public static List<AppsTagsDocumentsTable> ApplyExplorerRules(
+        IReadOnlyList<AppsTagsDocumentsTable> data, IEnumerable<ExplorerRule> rules)
     {
+        // Indexed once instead of per row. This used to filter and sort the whole rule list inside
+        // the Select, so a load ran that scan once per row - ~86k times; now each row is one
+        // dictionary lookup into an already ordered array.
+        var rulesByProcess = rules
+            .GroupBy(r => r.Process)
+            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.Order).ToArray());
+
         return data.Select(row =>
         {
             // Find the first matching rule for this row
-            var matchingRule = rules
-                .Where(r => r.Process == row.Process)
-                .OrderBy(r => r.Order)
-                .FirstOrDefault(r =>
-                {
-                    var value = r.Column switch
-                    {
-                        "Name" => row.Name,
-                        "DocName" => row.DocName,
-                        "Domain" => row.Domain,
-                        _ => ""
-                    };
-                    return r.MatchType switch
-                    {
-                        "Prefix" => value.StartsWith(r.Pattern, StringComparison.OrdinalIgnoreCase),
-                        "Suffix" => value.EndsWith(r.Pattern, StringComparison.OrdinalIgnoreCase),
-                        "Include" => value.Contains(r.Pattern, StringComparison.OrdinalIgnoreCase),
-                        _ => false
-                    };
-                });
+            ExplorerRule? matchingRule = rulesByProcess.TryGetValue(row.Process, out var candidates)
+                ? Array.Find(candidates, r => Matches(row, r))
+                : null;
 
             return new AppsTagsDocumentsTable
             {
@@ -284,32 +366,39 @@ public class DataService
             };
         }).ToList();
     }
+
+    // Column: which of the row's text fields the rule looks at. MatchType: how.
+    private static bool Matches(AppsTagsDocumentsTable row, ExplorerRule rule)
+    {
+        var value = rule.Column switch
+        {
+            "Name" => row.Name,
+            "DocName" => row.DocName,
+            "Domain" => row.Domain,
+            _ => ""
+        };
+
+        return rule.MatchType switch
+        {
+            "Prefix" => value.StartsWith(rule.Pattern, StringComparison.OrdinalIgnoreCase),
+            "Suffix" => value.EndsWith(rule.Pattern, StringComparison.OrdinalIgnoreCase),
+            "Include" => value.Contains(rule.Pattern, StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
+    }
+
     // 5. Reduce AppsTagsDocumentsTable down to just AppsTagsTable to be used by PieGraph and such
     private static List<AppsTagsTable> ReduceTable(List<AppsTagsDocumentsTable> data)
     {
-        return data.Select(row =>
+        return data.Select(row => new AppsTagsTable
         {
-            return new AppsTagsTable
-            {
-                Name = row.Name,
-                Start = row.Start,
-                End = row.End,
-                Duration = row.Duration,
-                Process = row.Process,
-                OriginalProcess = row.OriginalProcess,
-                Tag = row.Tag
-            };
+            Name = row.Name,
+            Start = row.Start,
+            End = row.End,
+            Duration = row.Duration,
+            Process = row.Process,
+            OriginalProcess = row.OriginalProcess,
+            Tag = row.Tag
         }).ToList();
-    }
-
-    // Replace Explorer Rules
-    public async Task ReplaceExplorerRulesAsync(string process, List<ExplorerRule> newRules)
-    {
-        _explorerRules.RemoveAll(r => r.Process == process);
-        _explorerRules.AddRange(newRules);
-
-        using var writer = new StreamWriter(ExplorerPath);
-        using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-        await csv.WriteRecordsAsync(_explorerRules);
     }
 }

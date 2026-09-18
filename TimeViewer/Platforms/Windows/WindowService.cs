@@ -1,6 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using WinRT.Interop;
 
 namespace TimeViewer.Platforms.Windows;
@@ -11,8 +8,14 @@ public class WindowService
 
     public void SetAlwaysOnTop(bool alwaysOnTop)
     {
-        var window = App.Current.Windows[0].Handler.PlatformView as Microsoft.UI.Xaml.Window;
-        var hwnd = WindowNative.GetWindowHandle(window);
+        // The whole chain is nullable during startup and teardown; nothing to pin if it is
+        var platformWindow = Microsoft.Maui.Controls.Application.Current?
+            .Windows.FirstOrDefault()?
+            .Handler?.PlatformView as Microsoft.UI.Xaml.Window;
+
+        if (platformWindow is null) return;
+
+        var hwnd = WindowNative.GetWindowHandle(platformWindow);
         var hWndInsertAfter = alwaysOnTop ? new IntPtr(-1) : new IntPtr(-2);
         SetWindowPos(hwnd, hWndInsertAfter, 0, 0, 0, 0, 0x0001 | 0x0002);
     }

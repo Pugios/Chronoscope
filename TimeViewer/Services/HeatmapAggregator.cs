@@ -11,7 +11,8 @@
 // StatisticsPage, and it must not reach the exported file.
 public static class HeatmapAggregator
 {
-    // The floor the pie and the timeline apply too - keep the three in agreement.
+    // The floor the pie and the timeline apply too. They reference this constant rather than
+    // repeating the number, so the three cannot drift apart.
     public const double MinTrackedSeconds = 30;
 
     // GitHub's four non-empty shades; the empty one is index 0.
@@ -25,7 +26,7 @@ public static class HeatmapAggregator
     public static List<TagDailyTotals> AggregateTagDays(IEnumerable<AppsTagsTable> data, int? year = null)
     {
         return data
-            .Where(a => TimeSpan.Parse(a.Duration).TotalSeconds > MinTrackedSeconds)
+            .Where(a => a.DurationSeconds > MinTrackedSeconds)
             .Where(a => year is null || a.Start.Year == year)
             .Where(a => !string.IsNullOrWhiteSpace(a.Tag))
             .GroupBy(a => a.Tag)
@@ -34,8 +35,8 @@ public static class HeatmapAggregator
                 Tag = g.Key,
                 Days = g
                     .GroupBy(a => a.Start.Date)
-                    .ToDictionary(d => d.Key, d => d.Sum(a => TimeSpan.Parse(a.Duration).TotalSeconds)),
-                TotalSeconds = g.Sum(a => TimeSpan.Parse(a.Duration).TotalSeconds)
+                    .ToDictionary(d => d.Key, d => d.Sum(a => a.DurationSeconds)),
+                TotalSeconds = g.Sum(a => a.DurationSeconds)
             })
             .OrderByDescending(t => t.TotalSeconds)
             .ToList();
