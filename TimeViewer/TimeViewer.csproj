@@ -31,8 +31,10 @@
 		<!-- Display name -->
 		<ApplicationTitle>TimeViewer</ApplicationTitle>
 
-		<!-- App Identifier -->
-		<ApplicationId>com.companyname.timeviewer</ApplicationId>
+		<!-- App Identifier. This is the second segment of FileSystem.AppDataDirectory
+		     (AppData\Local\<PublisherDisplayName>\<ApplicationId>\Data), so changing it after
+		     release orphans every user's tags.csv and Explorer rules. Settled before 1.0. -->
+		<ApplicationId>com.pugio.timeviewer</ApplicationId>
 
 		<!-- Versions. Keep ApplicationDisplayVersion in step with AppVersion in TimeViewer.iss
 		     and with the GitHub release tag, or the installed exe's file properties disagree
