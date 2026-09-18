@@ -34,9 +34,11 @@
 		<!-- App Identifier -->
 		<ApplicationId>com.companyname.timeviewer</ApplicationId>
 
-		<!-- Versions -->
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-		<ApplicationVersion>1</ApplicationVersion>
+		<!-- Versions. Keep ApplicationDisplayVersion in step with AppVersion in TimeViewer.iss
+		     and with the GitHub release tag, or the installed exe's file properties disagree
+		     with the installer that put it there. -->
+		<ApplicationDisplayVersion>0.3</ApplicationDisplayVersion>
+		<ApplicationVersion>3</ApplicationVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
 		<WindowsPackageType>None</WindowsPackageType>
