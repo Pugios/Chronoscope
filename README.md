@@ -16,9 +16,6 @@ The result is displayed as an interactive nested pie chart you can navigate day 
 
 For the larger picture, [Analysis](./Analysis/) provides several Python scripts to identify longer-term trends. My goal is to eventually surface these statistics in the app as well.
 
-For how it all fits together - a diagram of the data flow, a file-by-file map and the rules the
-views share - see [ARCHITECTURE.md](./ARCHITECTURE.md).
-
 ---
 Home Page
 ![](./pics/TM1.png)
