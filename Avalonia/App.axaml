@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="TimeViewer.App"
              xmlns:local="using:TimeViewer"
+             xmlns:sty="using:FluentAvalonia.Styling"
              RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
@@ -10,6 +11,8 @@
     </Application.DataTemplates>
 
     <Application.Styles>
-        <FluentTheme />
+      <sty:FluentAvaloniaTheme 
+        PreferSystemTheme="True"
+        PreferUserAccentColor="True"/>
     </Application.Styles>
 </Application>
