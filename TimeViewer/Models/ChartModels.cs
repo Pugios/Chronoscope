@@ -51,16 +51,25 @@ public class TagDailyTotals
     public double TotalSeconds { get; init; }
 }
 
-// One tag's year of daily totals, shaped as a GitHub-contributions grid:
-// X = week column, Y = weekday (0 = Mon .. 6 = Sun, drawn top-down by an inverted Y axis).
-// The series and axes are built ready-made in StatisticsPage rather than in the DataTemplate,
-// because their labelers and the tooltip close over the year's calendar and this tag's own daily
-// totals - and because binding them whole keeps x:TypeArguments generics out of the XAML.
-public class TagYearHeatmap
+// One tag's seconds broken down by weekday and hour of day, straight out of HeatmapAggregator.
+// [weekday, hour] with Monday = 0 - the same row order the year grid's inverted Y axis assumes.
+// Unlike TagDailyTotals these cells SPLIT an activity across the hours it covers; see
+// HeatmapAggregator.AggregateTagWeekHours for why, and for what that does to midnight.
+public class TagWeekHourTotals
 {
     public string Tag { get; init; } = "";
-    public Color TagColor { get; init; } = Colors.Transparent; // the dot beside the title
-    public string TotalLabel { get; init; } = ""; // "412h over 231 days"
+    public double[,] Cells { get; init; } =
+        new double[HeatmapAggregator.WeekdayCount, HeatmapAggregator.HourCount];
+    public double TotalSeconds { get; init; }
+}
+
+// One drawn grid: its caption, the ready-made series and axes, its size, and its own legend strip.
+// The series and axes are built in StatisticsPage rather than in the DataTemplate, because their
+// labelers and tooltips close over the period they describe - and because binding them whole keeps
+// x:TypeArguments generics out of the XAML.
+public class HeatmapPanel
+{
+    public string Caption { get; init; } = "";    // "Year Overview" / "Active Hours"
     public ISeries[] Series { get; init; } = [];  // exactly ONE heat series
     public ICartesianAxis[] XAxes { get; init; } = [];
     public ICartesianAxis[] YAxes { get; init; } = [];
@@ -69,6 +78,17 @@ public class TagYearHeatmap
     public double ChartWidth { get; init; }
     public double ChartHeight { get; init; }
     public HeatmapScaleStep[] ScaleSteps { get; init; } = []; // the legend strip, the ramp itself
+}
+
+// One tag's row on the Statistics page: the title, then its grids drawn left to right.
+// Each panel carries its own scale strip, because a Year Overview cell is one day while an
+// Active Hours cell is ~52 of that hour summed - the two sets of quartiles are not comparable.
+public class TagStatistics
+{
+    public string Tag { get; init; } = "";
+    public Color TagColor { get; init; } = Colors.Transparent; // the dot beside the title
+    public string TotalLabel { get; init; } = "";              // "412h over 231 days"
+    public HeatmapPanel[] Panels { get; init; } = [];          // exactly two, in draw order
 }
 
 // One step of a heatmap's legend: the shade, and the span of tracked time it stands for.

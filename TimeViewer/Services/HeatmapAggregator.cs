@@ -18,6 +18,11 @@ public static class HeatmapAggregator
     // GitHub's four non-empty shades; the empty one is index 0.
     public const int ShadeLevels = 4;
 
+    // The two axes of the Active Hours grid. Monday = 0, matching the Monday-first shift the
+    // year grid's rows already use.
+    public const int WeekdayCount = 7;
+    public const int HourCount = 24;
+
     // Daily totals per tag, biggest tag first. Pass a year to restrict to it, or null for every
     // year in the data (what the export wants, so the vault is not limited to one year).
     //
@@ -40,6 +45,59 @@ public static class HeatmapAggregator
             })
             .OrderByDescending(t => t.TotalSeconds)
             .ToList();
+    }
+
+    // Seconds per weekday and hour of day, per tag, biggest tag first - the Active Hours grid.
+    // Same shape and ordering as AggregateTagDays, so the two line up tag for tag.
+    //
+    // Row selection is deliberately identical to AggregateTagDays - the >30s floor, and the year
+    // taken from Start - so both grids on the Statistics page describe the same set of activities.
+    //
+    // The one rule that does NOT carry over is "an activity belongs wholly to its Start day".
+    // Here an activity is SPLIT across every hour it actually covers. At day resolution that rule
+    // is invisible; at hour resolution it would drop a four hour session entirely into its first
+    // hour and invent a spike that never happened. The consequence is that an activity crossing
+    // midnight now also spills into the following weekday's row, which is the honest answer to
+    // "when was I active".
+    public static List<TagWeekHourTotals> AggregateTagWeekHours(IEnumerable<AppsTagsTable> data, int? year = null)
+    {
+        return data
+            .Where(a => a.DurationSeconds > MinTrackedSeconds)
+            .Where(a => year is null || a.Start.Year == year)
+            .Where(a => !string.IsNullOrWhiteSpace(a.Tag))
+            .GroupBy(a => a.Tag)
+            .Select(g =>
+            {
+                var cells = new double[WeekdayCount, HourCount];
+                foreach (var a in g) AddHourSlices(cells, a.Start, a.End);
+
+                return new TagWeekHourTotals
+                {
+                    Tag = g.Key,
+                    Cells = cells,
+                    TotalSeconds = g.Sum(a => a.DurationSeconds)
+                };
+            })
+            .OrderByDescending(t => t.TotalSeconds)
+            .ToList();
+    }
+
+    // Walks the activity hour boundary by hour boundary, adding each slice to the cell for the
+    // weekday and hour that slice actually falls in. Rolling past hour 23 lands on the next day's
+    // 00:00 on its own, so midnight needs no special case. Splitting conserves the total, which is
+    // what lets the 168 cells sum back to the tag's TotalSeconds.
+    private static void AddHourSlices(double[,] cells, DateTime start, DateTime end)
+    {
+        for (var cursor = start; cursor < end; )
+        {
+            var nextHour = cursor.Date.AddHours(cursor.Hour + 1);
+            var sliceEnd = nextHour < end ? nextHour : end;
+
+            int weekday = ((int)cursor.DayOfWeek + 6) % 7;   // Monday = 0, as the Y axis assumes
+            cells[weekday, cursor.Hour] += (sliceEnd - cursor).TotalSeconds;
+
+            cursor = sliceEnd;
+        }
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

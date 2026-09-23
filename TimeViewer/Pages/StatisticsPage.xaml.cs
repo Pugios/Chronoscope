@@ -14,10 +14,12 @@ public partial class StatisticsPage : ContentPage
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Parameters
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    double CellSize = 14;           // one day, drawn square
+    double CellSize = 14;           // one cell - a day, or one weekday-hour - drawn square
     double CellPadding = 2;         // gap between two day cells
-    double WeekdayGutter = 28;      // room for the M/W/F labels left of the grid
-    double MonthGutter = 20;        // room for the month labels above the grid
+    double WeekdayGutter = 38;      // room for the weekday labels left of either grid.
+                                    // Sized for Active Hours' "Wed", not the year grid's "W":
+                                    // at 28 the 00:00 column painted over the last letter.
+    double TopGutter = 20;          // room for the month or hour labels above the grid
     double ChartEdge = 4;           // breathing room on the other two sides
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -54,7 +56,7 @@ public partial class StatisticsPage : ContentPage
             // MainPage has already primed the shared DataService, so the default path costs no
             // ManicTime export - only the refresh button pays for one.
             var apps = await _dataService.GetMergedDataAsync(forceReload);
-            LoadYearHeatmaps(apps, _year);
+            LoadTagStatistics(apps, _year);
 
             // The chart is the point of this page; a vault that has moved or is on an unplugged
             // drive must not take it down with it. The Export button reports failures out loud.
@@ -74,7 +76,7 @@ public partial class StatisticsPage : ContentPage
         catch (Exception ex)
         {
             // OnAppearing is async void, so anything unhandled here takes the whole app down
-            await DisplayAlertAsync("Could not draw the heatmaps", ex.Message, "OK");
+            await DisplayAlertAsync("Could not draw the statistics", ex.Message, "OK");
         }
         finally
         {
@@ -140,14 +142,14 @@ public partial class StatisticsPage : ContentPage
         }
     }
 
-    private TagYearHeatmap[] _tagHeatmaps = [];
-    public TagYearHeatmap[] TagHeatmaps
+    private TagStatistics[] _tagStats = [];
+    public TagStatistics[] TagStats
     {
-        get => _tagHeatmaps;
+        get => _tagStats;
         set
         {
-            _tagHeatmaps = value;
-            OnPropertyChanged(nameof(TagHeatmaps));
+            _tagStats = value;
+            OnPropertyChanged(nameof(TagStats));
         }
     }
 
@@ -176,28 +178,36 @@ public partial class StatisticsPage : ContentPage
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    // Year Heatmaps
+    // Tag Statistics
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    private void LoadYearHeatmaps(IReadOnlyList<AppsTagsTable> data, int year)
+    // One row per tag: the title, then two grids side by side. Year Overview answers how much and
+    // on which days; Active Hours answers when during the day. Both cover the same year and are
+    // built from the same set of activities, so they can be read against each other.
+    private void LoadTagStatistics(IReadOnlyList<AppsTagsTable> data, int year)
     {
         DisplayYear = year.ToString();
 
-        // The grid's origin is the Monday of the week containing Jan 1, so every column is a whole
-        // Mon-Sun week. The (+6 % 7) shift turns DayOfWeek's Sunday-first numbering into Monday = 0,
-        // which is the row order the Y axis labels assume.
+        // The year grid's origin is the Monday of the week containing Jan 1, so every column is a
+        // whole Mon-Sun week. The (+6 % 7) shift turns DayOfWeek's Sunday-first numbering into
+        // Monday = 0, which is the row order both grids' Y axes assume.
         var jan1 = new DateTime(year, 1, 1);
-        var dec31 = new DateTime(year, 12, 31);
         var firstCell = jan1.AddDays(-(((int)jan1.DayOfWeek + 6) % 7));
-        int weekCount = ((dec31 - firstCell).Days / 7) + 1;
+        int weekCount = ((new DateTime(year, 12, 31) - firstCell).Days / 7) + 1;
 
         // Daily totals per tag, biggest tag first. Shared with the Obsidian vault export so the
         // two can never disagree - see HeatmapAggregator for the floor and the midnight rule.
         var perTag = HeatmapAggregator.AggregateTagDays(data, year);
 
+        // The second grid's numbers, looked up by tag rather than zipped: the loop below is driven
+        // by the daily totals, so nothing can pair one tag's year with another tag's hours. Both
+        // aggregations select rows identically, so every tag here has an entry there.
+        var perTagHours = HeatmapAggregator.AggregateTagWeekHours(data, year)
+            .ToDictionary(t => t.Tag);
+
         if (perTag.Count == 0)
         {
-            TagHeatmaps = [];
+            TagStats = [];
             EmptyMessage = $"No time tracked in {year}.";
             IsEmpty = true;
             return;
@@ -205,63 +215,86 @@ public partial class StatisticsPage : ContentPage
 
         IsEmpty = false;
 
-        var heatmaps = new List<TagYearHeatmap>();
+        var stats = new List<TagStatistics>();
         foreach (var tag in perTag)
         {
+            // One colour per tag, one ramp from it, shared by both of that tag's grids. A shade
+            // stands for a different span in each, which is why each panel carries its own strip.
             string tagColor = _settingsService.GetTagColor(tag.Tag);
             string[] ramp = _settingsService.BuildTagRamp(tagColor, HeatmapAggregator.ShadeLevels);
-            double[] thresholds = HeatmapAggregator.BucketThresholds(tag.Days.Values);
 
-            // One point per day of the year, zero days included so they draw in the empty shade.
-            // Days of the leading and trailing partial weeks that fall outside the year get no
-            // point at all, so those corner cells stay blank - the same as GitHub.
-            var cells = new List<WeightedPoint>(366);
-            for (var day = jan1; day <= dec31; day = day.AddDays(1))
-            {
-                int offset = (day - firstCell).Days;
-                tag.Days.TryGetValue(day, out double seconds);
-                cells.Add(new WeightedPoint(offset / 7, offset % 7, HeatmapAggregator.Bucket(seconds, thresholds)));
-            }
-
-            // Captured by the tooltip below, which reports the real duration rather than the
-            // bucket the cell's color came from
-            var days = tag.Days;
-
-            var series = new HeatSeries<WeightedPoint>
-            {
-                Name = tag.Tag,
-                Values = cells,
-                HeatMap = ramp.Select(hex => SKColor.Parse(hex).AsLvcColor()).ToArray(),
-                // The weight IS the bucket, and the stops are evenly spaced over 0..ShadeLevels,
-                // so weight k lands exactly on stop k: five discrete shades, not a gradient.
-                MinValue = 0,
-                MaxValue = HeatmapAggregator.ShadeLevels,
-                PointPadding = new Padding(CellPadding),
-                XToolTipLabelFormatter = point => DateFor(firstCell, point).ToString("ddd dd MMM yyyy"),
-                YToolTipLabelFormatter = point =>
-                    days.TryGetValue(DateFor(firstCell, point), out double seconds)
-                        ? TimeSpan.FromSeconds(seconds).ToString(@"h\:mm")
-                        : "nothing tracked"
-            };
-
-            heatmaps.Add(new TagYearHeatmap
+            stats.Add(new TagStatistics
             {
                 Tag = tag.Tag,
                 TagColor = Color.Parse(tagColor),
                 TotalLabel = $"{TimeSpan.FromSeconds(tag.TotalSeconds).TotalHours:F0}h over {tag.Days.Count} days",
-                Series = [series],
-                XAxes = [BuildMonthAxis(firstCell, weekCount, year)],
-                YAxes = [BuildWeekdayAxis()],
-                DrawMargin = new Margin((float)WeekdayGutter, (float)MonthGutter, (float)ChartEdge, (float)ChartEdge),
-                ChartWidth = WeekdayGutter + (weekCount * CellSize) + ChartEdge,
-                ChartHeight = MonthGutter + (7 * CellSize) + ChartEdge,
-                ScaleSteps = BuildScaleSteps(ramp, thresholds)
+                Panels =
+                [
+                    BuildYearPanel(tag, ramp, year, firstCell, weekCount),
+                    BuildActiveHoursPanel(perTagHours[tag.Tag], ramp)
+                ]
             });
         }
 
-        TagHeatmaps = heatmaps.ToArray();
+        TagStats = stats.ToArray();
 
-        Debug.WriteLine($"Year heatmaps built: {heatmaps.Count} tags, {weekCount} week columns");
+        Debug.WriteLine($"Tag statistics built: {stats.Count} tags, {weekCount} week columns, "
+            + $"{HeatmapAggregator.WeekdayCount}x{HeatmapAggregator.HourCount} active hour cells");
+    }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Year Overview
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    // The GitHub contributions grid: X = week column, Y = weekday, one cell per day of the year.
+    private HeatmapPanel BuildYearPanel(TagDailyTotals tag, string[] ramp,
+        int year, DateTime firstCell, int weekCount)
+    {
+        double[] thresholds = HeatmapAggregator.BucketThresholds(tag.Days.Values);
+
+        // One point per day of the year, zero days included so they draw in the empty shade.
+        // Days of the leading and trailing partial weeks that fall outside the year get no
+        // point at all, so those corner cells stay blank - the same as GitHub.
+        var cells = new List<WeightedPoint>(366);
+        for (var day = new DateTime(year, 1, 1); day.Year == year; day = day.AddDays(1))
+        {
+            int offset = (day - firstCell).Days;
+            tag.Days.TryGetValue(day, out double seconds);
+            cells.Add(new WeightedPoint(offset / 7, offset % 7, HeatmapAggregator.Bucket(seconds, thresholds)));
+        }
+
+        // Captured by the tooltip below, which reports the real duration rather than the
+        // bucket the cell's color came from
+        var days = tag.Days;
+
+        var series = new HeatSeries<WeightedPoint>
+        {
+            Name = tag.Tag,
+            Values = cells,
+            HeatMap = ramp.Select(hex => SKColor.Parse(hex).AsLvcColor()).ToArray(),
+            // The weight IS the bucket, and the stops are evenly spaced over 0..ShadeLevels,
+            // so weight k lands exactly on stop k: five discrete shades, not a gradient.
+            MinValue = 0,
+            MaxValue = HeatmapAggregator.ShadeLevels,
+            PointPadding = new Padding(CellPadding),
+            XToolTipLabelFormatter = point => DateFor(firstCell, point).ToString("ddd dd MMM yyyy"),
+            YToolTipLabelFormatter = point =>
+                days.TryGetValue(DateFor(firstCell, point), out double seconds)
+                    ? TimeSpan.FromSeconds(seconds).ToString(@"h\:mm")
+                    : "nothing tracked"
+        };
+
+        return new HeatmapPanel
+        {
+            Caption = "Year Overview",
+            Series = [series],
+            XAxes = [BuildMonthAxis(firstCell, weekCount, year)],
+            YAxes = [BuildWeekdayAxis()],
+            DrawMargin = new Margin((float)WeekdayGutter, (float)TopGutter, (float)ChartEdge, (float)ChartEdge),
+            ChartWidth = WeekdayGutter + (weekCount * CellSize) + ChartEdge,
+            ChartHeight = TopGutter + (HeatmapAggregator.WeekdayCount * CellSize) + ChartEdge,
+            ScaleSteps = BuildScaleSteps(ramp, thresholds)
+        };
     }
 
     // The date a hovered cell stands for: X is its week column, Y its weekday within that week
@@ -269,12 +302,81 @@ public partial class StatisticsPage : ContentPage
         firstCell.AddDays((point.Coordinate.SecondaryValue * 7) + point.Coordinate.PrimaryValue);
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Active Hours
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    // Monday-Sunday down the side, 00-23 across the top: when during the day this tag happens.
+    // Drawn at the same cell size and height as the year grid, so the two line up row for row.
+    //
+    // The quartiles are computed over these 168 cells rather than over the year's days, because a
+    // cell here is one hour summed over every week of the year and is nowhere near the same
+    // magnitude as a single day. That is exactly why this panel carries its own scale strip.
+    private HeatmapPanel BuildActiveHoursPanel(TagWeekHourTotals tag, string[] ramp)
+    {
+        var cells = tag.Cells;
+        double[] thresholds = HeatmapAggregator.BucketThresholds(cells.Cast<double>());
+
+        // Every cell gets a point, including the empty ones: unlike the year grid there is no
+        // such thing as an hour outside the period, so nothing here should be left blank.
+        var points = new List<WeightedPoint>(HeatmapAggregator.WeekdayCount * HeatmapAggregator.HourCount);
+        for (int weekday = 0; weekday < HeatmapAggregator.WeekdayCount; weekday++)
+        {
+            for (int hour = 0; hour < HeatmapAggregator.HourCount; hour++)
+            {
+                // X = hour, Y = weekday, mirroring the year grid's X = week, Y = weekday
+                points.Add(new WeightedPoint(hour, weekday,
+                    HeatmapAggregator.Bucket(cells[weekday, hour], thresholds)));
+            }
+        }
+
+        var series = new HeatSeries<WeightedPoint>
+        {
+            Name = tag.Tag,
+            Values = points,
+            HeatMap = ramp.Select(hex => SKColor.Parse(hex).AsLvcColor()).ToArray(),
+            MinValue = 0,
+            MaxValue = HeatmapAggregator.ShadeLevels,
+            PointPadding = new Padding(CellPadding),
+            XToolTipLabelFormatter = point =>
+            {
+                var (weekday, hour) = CellFor(point);
+                return $"{WeekdayNames[weekday]} {hour:00}:00-{(hour + 1) % HeatmapAggregator.HourCount:00}:00";
+            },
+            // FormatDuration rather than TimeSpan's "h:mm": a cell sums one hour over every week of
+            // the year, so it routinely passes 24h - and "h" is hours WITHIN a day, which would
+            // render 52h as "4:00" and silently drop two whole days.
+            YToolTipLabelFormatter = point =>
+            {
+                var (weekday, hour) = CellFor(point);
+                double seconds = cells[weekday, hour];
+                return seconds > 0 ? HeatmapAggregator.FormatDuration(seconds) : "nothing tracked";
+            }
+        };
+
+        return new HeatmapPanel
+        {
+            Caption = "Active Hours",
+            Series = [series],
+            XAxes = [BuildHourAxis()],
+            YAxes = [BuildFullWeekdayAxis()],
+            DrawMargin = new Margin((float)WeekdayGutter, (float)TopGutter, (float)ChartEdge, (float)ChartEdge),
+            ChartWidth = WeekdayGutter + (HeatmapAggregator.HourCount * CellSize) + ChartEdge,
+            ChartHeight = TopGutter + (HeatmapAggregator.WeekdayCount * CellSize) + ChartEdge,
+            ScaleSteps = BuildScaleSteps(ramp, thresholds)
+        };
+    }
+
+    // The cell a hovered point stands for: X is the hour, Y the weekday
+    private static (int Weekday, int Hour) CellFor(ChartPoint point) =>
+        ((int)Math.Round(point.Coordinate.PrimaryValue), (int)Math.Round(point.Coordinate.SecondaryValue));
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Legend
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    // One swatch per shade, labelled with the span of tracked time it stands for, so the grid can
-    // be read without hovering every cell. Built from the same ramp and thresholds the cells use,
-    // so the strip cannot drift from what it describes.
+    // One swatch per shade, labelled with the span of tracked time it stands for, so a grid can be
+    // read without hovering every cell. Built from the same ramp and thresholds the cells use, so
+    // a strip cannot drift from what it describes - which is also why each panel builds its own.
     private static HeatmapScaleStep[] BuildScaleSteps(string[] ramp, double[] thresholds)
     {
         string[] labels = HeatmapAggregator.BucketLabels(thresholds);
@@ -288,7 +390,7 @@ public partial class StatisticsPage : ContentPage
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Axes
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    // Both axes are pinned half a cell outside the data so the outermost cells are drawn whole.
+    // Every axis is pinned half a cell outside the data so the outermost cells are drawn whole.
     // -0.5 also sidesteps the quirk the timeline documents in MainPage: assigning an axis's own
     // default (0) raises no change notification, and the axis then auto-scales instead.
 
@@ -338,6 +440,35 @@ public partial class StatisticsPage : ContentPage
         ShowSeparatorLines = false,
         TextSize = 11,
         MinLimit = -0.5,
-        MaxLimit = 6.5
+        MaxLimit = HeatmapAggregator.WeekdayCount - 0.5
+    };
+
+    // Every third hour, which is as dense as 14px cells carry at this text size
+    private static Axis BuildHourAxis() => new Axis
+    {
+        // End puts them along the top, where the year grid's months are
+        Position = AxisPosition.End,
+        Labeler = hour => $"{(int)Math.Round(hour):00}",
+        CustomSeparators = [0, 3, 6, 9, 12, 15, 18, 21],
+        ShowSeparatorLines = false,
+        TextSize = 11,
+        MinLimit = -0.5,
+        MaxLimit = HeatmapAggregator.HourCount - 0.5
+    };
+
+    private static readonly string[] WeekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    // Monday on top like the year grid, but every row labelled. The year grid can get away with
+    // three of seven because its rows are not its subject; here the weekday IS the subject, and
+    // initials would leave two ambiguous pairs (T/T and S/S).
+    private static Axis BuildFullWeekdayAxis() => new Axis
+    {
+        IsInverted = true,
+        Labeler = weekday => WeekdayNames[Math.Clamp((int)Math.Round(weekday), 0, WeekdayNames.Length - 1)],
+        CustomSeparators = [0, 1, 2, 3, 4, 5, 6],
+        ShowSeparatorLines = false,
+        TextSize = 11,
+        MinLimit = -0.5,
+        MaxLimit = HeatmapAggregator.WeekdayCount - 0.5
     };
 }
