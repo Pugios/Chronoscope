@@ -35,15 +35,6 @@
                 ToolTip.Tip="Reload from ManicTime">
           <ui:FASymbolIcon Symbol="Refresh" />
         </Button>
-        <!-- The same export every refresh already performs, on demand and loud about
-             what happened. See Settings for the vault folder it writes to. -->
-        <Button Classes="accent" Height="34" Margin="4,0,0,0" Command="{Binding ExportCommand}"
-                ToolTip.Tip="Write the heatmap data into your Obsidian vault">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <ui:FASymbolIcon Symbol="Share" FontSize="16" />
-            <TextBlock Text="Export to Vault" VerticalAlignment="Center" />
-          </StackPanel>
-        </Button>
       </StackPanel>
     </Grid>
 

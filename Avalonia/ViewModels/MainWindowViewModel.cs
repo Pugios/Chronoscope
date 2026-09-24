@@ -28,7 +28,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _vaultExportService = vaultExportService;
         _dialogs = dialogs;
         _day = new DayViewModel(settingsService, dataService, dialogs);
-        _statistics = new StatisticsViewModel(settingsService, dataService, vaultExportService, dialogs);
+        _statistics = new StatisticsViewModel(settingsService, dataService, dialogs);
     }
 
     [ObservableProperty]
@@ -58,7 +58,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             AppSection.Statistics => _statistics,
             AppSection.Tags => new TagsViewModel(_settingsService, _dataService, _dialogs, this),
-            AppSection.Settings => new SettingsViewModel(_settingsService, _dataService, _dialogs, this),
+            AppSection.Settings => new SettingsViewModel(_settingsService, _dataService, _vaultExportService, _dialogs, this),
             _ => _day
         };
 

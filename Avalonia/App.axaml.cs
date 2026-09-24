@@ -20,7 +20,7 @@ public partial class App : Application
             // The composition root: the singletons MauiProgram registered, built by hand
             var settingsService = new SettingsService();
             var dataService = new DataService(settingsService);
-            var vaultExportService = new VaultExportService(settingsService);
+            var vaultExportService = new VaultExportService(settingsService, dataService);
             var dialogs = new DialogService();
 
             var shell = new MainWindowViewModel(settingsService, dataService, vaultExportService, dialogs);

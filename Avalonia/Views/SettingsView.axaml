@@ -85,7 +85,7 @@
           <!-- The folder must sit INSIDE the vault: dataviewjs' dv.io.load() only resolves
                vault-relative paths, so anything outside is unreachable from a note. -->
           <ui:FASettingsExpander Header="Export heatmap data to Obsidian"
-                                 Description="Writes timeviewer-heatmap.json into a folder inside your vault on every Statistics refresh"
+                                 Description="Writes timeviewer-heatmap.json into a folder inside your vault whenever the data is loaded or a tag colour changes"
                                  IconSource="Share"
                                  IsExpanded="True">
             <ui:FASettingsExpander.Footer>
@@ -95,6 +95,15 @@
                                        Description="{Binding ObsidianExportPathDisplay}">
               <ui:FASettingsExpanderItem.Footer>
                 <Button Content="Browse..." Command="{Binding BrowseVaultCommand}" />
+              </ui:FASettingsExpanderItem.Footer>
+            </ui:FASettingsExpanderItem>
+            <!-- The export runs unattended, so this is the only place a failure shows up -->
+            <ui:FASettingsExpanderItem Content="Last export"
+                                       Description="{Binding ExportStatus}">
+              <ui:FASettingsExpanderItem.Footer>
+                <ui:FASymbolIcon Symbol="Important" FontSize="18" IsVisible="{Binding ExportFailed}"
+                                 Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                 ToolTip.Tip="The latest export failed" />
               </ui:FASettingsExpanderItem.Footer>
             </ui:FASettingsExpanderItem>
           </ui:FASettingsExpander>

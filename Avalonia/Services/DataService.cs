@@ -76,6 +76,10 @@ public class DataService
     public TimeSpan DataAge =>
         _loadedAtUtc == DateTime.MinValue ? TimeSpan.MaxValue : DateTime.UtcNow - _loadedAtUtc;
 
+    // Raised after the pipeline has run and landed a fresh CachedAppsTags - never for a call that
+    // was served from the cache. Anything that follows the data (the vault export) hangs off this
+    // instead of every page's reload button remembering to call it.
+    public event Action? DataReloaded;
 
     // Create _cachedAppsTags.
     // forceReload always re-runs the pipeline; maxAge re-runs it only if the cache is older than
@@ -83,6 +87,7 @@ public class DataService
     public async Task<IReadOnlyList<AppsTagsTable>> GetMergedDataAsync(
         bool forceReload = false, TimeSpan? maxAge = null)
     {
+        bool reloaded = false;
         await _dataGate.WaitAsync();
         try
         {
@@ -128,12 +133,17 @@ public class DataService
             _cachedAppsTags = reduced;
             _loadedAtUtc = DateTime.UtcNow;
             _knownTags = null;
+            reloaded = true;
 
             return _cachedAppsTags;
         }
         finally
         {
             _dataGate.Release();
+
+            // Only once the gate is free: a handler that reads the data again must not deadlock,
+            // and a slow one must not hold up the next caller.
+            if (reloaded) DataReloaded?.Invoke();
         }
     }
 

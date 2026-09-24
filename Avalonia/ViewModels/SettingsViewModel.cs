@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Avalonia.Threading;
 
 namespace TimeViewer.ViewModels;
 
@@ -9,14 +10,16 @@ public partial class SettingsViewModel : ViewModelBase
 {
     private readonly SettingsService _settingsService;
     private readonly DataService _dataService;
+    private readonly VaultExportService _vaultExportService;
     private readonly DialogService _dialogs;
     private readonly MainWindowViewModel _shell;
 
     public SettingsViewModel(SettingsService settingsService, DataService dataService,
-        DialogService dialogs, MainWindowViewModel shell)
+        VaultExportService vaultExportService, DialogService dialogs, MainWindowViewModel shell)
     {
         _settingsService = settingsService;
         _dataService = dataService;
+        _vaultExportService = vaultExportService;
         _dialogs = dialogs;
         _shell = shell;
     }
@@ -28,8 +31,16 @@ public partial class SettingsViewModel : ViewModelBase
         ObsidianExportEnabled = _settingsService.ObsidianExportEnabled;
         TagsCsvPath = _settingsService.TagsCsvPath;
         ExplorerRulesCsvPath = _settingsService.ExplorerRulesCsvPath;
+
+        // The page lives on in the history, so it can be navigated to again: never subscribe twice
+        _vaultExportService.StatusChanged -= OnExportStatusChanged;
+        _vaultExportService.StatusChanged += OnExportStatusChanged;
+        UpdateExportStatus();
         return Task.CompletedTask;
     }
+
+    // The service outlives this page; a handler left attached would keep every visit alive
+    public override void OnNavigatedFrom() => _vaultExportService.StatusChanged -= OnExportStatusChanged;
 
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // ManicTime Path
@@ -67,6 +78,51 @@ public partial class SettingsViewModel : ViewModelBase
         if (path is not null)
             ObsidianExportPath = path;
     }
+
+    // What the export last did. Describes the SAVED settings, not the edits on screen: those are
+    // not what the export runs with until Save.
+    [ObservableProperty]
+    public partial string ExportStatus { get; private set; } = "";
+
+    [ObservableProperty]
+    public partial bool ExportFailed { get; private set; }
+
+    // Raised from wherever the export finished; the bound text has to change on the UI thread
+    private void OnExportStatusChanged() => Dispatcher.UIThread.Post(UpdateExportStatus);
+
+    private void UpdateExportStatus()
+    {
+        ExportFailed = false;
+
+        if (!_settingsService.ObsidianExportEnabled)
+        {
+            ExportStatus = "The export is switched off";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_settingsService.ObsidianExportPath))
+        {
+            ExportStatus = "Choose a vault folder to start exporting";
+            return;
+        }
+
+        DateTime? written = _vaultExportService.LastWrittenAt;
+
+        if (_vaultExportService.LastError is string error)
+        {
+            ExportFailed = true;
+            ExportStatus = $"Failed {When(_vaultExportService.LastErrorAt!.Value)}: {error}"
+                + (written is null ? "" : $"{Environment.NewLine}File last written {When(written.Value)}");
+            return;
+        }
+
+        ExportStatus = written is null
+            ? "Not exported yet - it runs the next time the data is loaded"
+            : $"Last exported {When(written.Value)}";
+    }
+
+    private static string When(DateTime time) =>
+        time.Date == DateTime.Today ? $"today at {time:t}" : time.ToString("g");
 
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Tagging Files
@@ -135,6 +191,10 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private async Task Save()
     {
+        bool exportChanged =
+            ObsidianExportPath != _settingsService.ObsidianExportPath
+            || ObsidianExportEnabled != _settingsService.ObsidianExportEnabled;
+
         _settingsService.MtcExePath = MtcExePath;
         _settingsService.ObsidianExportPath = ObsidianExportPath;
         _settingsService.ObsidianExportEnabled = ObsidianExportEnabled;
@@ -150,6 +210,11 @@ public partial class SettingsViewModel : ViewModelBase
         // Everything on screen was built from the old files; the next page to ask reloads
         if (filesMoved)
             await _dataService.InvalidateAsync();
+
+        // A newly chosen folder (or a freshly enabled export) should not stay empty until the
+        // next reload. Moved tagging files skip this on their own: the cache is empty until then.
+        if (exportChanged)
+            _vaultExportService.RequestExport();
 
         await _shell.CloseAsync();
     }

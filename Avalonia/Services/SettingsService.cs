@@ -79,7 +79,7 @@ public class SettingsService
             // Reloaded on every visit to the day view; only an actual difference counts as a change
             if (old.Count != _settings.TagColors.Count
                 || old.Any(kv => !_settings.TagColors.TryGetValue(kv.Key, out var c) || c != kv.Value))
-                TagColorsVersion++;
+                OnTagColorsChanged();
         }
         catch (Exception ex)
         {
@@ -230,6 +230,16 @@ public class SettingsService
     // Bumped on every colour change, so a kept page can tell whether what it drew is still current
     public int TagColorsVersion { get; private set; }
 
+    // The same moment, for whoever has to act on it rather than poll: the vault export carries
+    // every tag's colour and ramp, so a new colour has to reach the file without a data reload.
+    public event Action? TagColorsChanged;
+
+    private void OnTagColorsChanged()
+    {
+        TagColorsVersion++;
+        TagColorsChanged?.Invoke();
+    }
+
     // Expose all Tag Colors as ReadOnly
     public IReadOnlyDictionary<string, string> TagColors => _settings.TagColors;
 
@@ -242,7 +252,7 @@ public class SettingsService
         // Auto-assign a random color and save it
         color = $"#{Random.Shared.Next(256):X2}{Random.Shared.Next(256):X2}{Random.Shared.Next(256):X2}";
         _settings.TagColors[tag] = color;
-        TagColorsVersion++;
+        OnTagColorsChanged();
         RequestSave();
         return color;
     }
@@ -285,13 +295,13 @@ public class SettingsService
     {
         if (_settings.TagColors.TryGetValue(tag, out var old) && old == color) return;
         _settings.TagColors[tag] = color;
-        TagColorsVersion++;
+        OnTagColorsChanged();
         RequestSave();
     }
 
     public void DeleteTagColor(string tag)
     {
-        if (_settings.TagColors.Remove(tag)) TagColorsVersion++;
+        if (_settings.TagColors.Remove(tag)) OnTagColorsChanged();
         RequestSave();
     }
 }

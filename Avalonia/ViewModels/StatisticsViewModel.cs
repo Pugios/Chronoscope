@@ -7,7 +7,6 @@ using LiveChartsCore.Measure;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
-using System.Diagnostics;
 using Avalonia.Threading;
 using Avalonia;
 using Avalonia.Media;
@@ -38,15 +37,13 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
 
     private readonly SettingsService _settingsService;
     private readonly DataService _dataService;
-    private readonly VaultExportService _vaultExportService;
     private readonly DialogService _dialogs;
 
     public StatisticsViewModel(SettingsService settingsService, DataService dataService,
-        VaultExportService vaultExportService, DialogService dialogs)
+        DialogService dialogs)
     {
         _settingsService = settingsService;
         _dataService = dataService;
-        _vaultExportService = vaultExportService;
         _dialogs = dialogs;
     }
 
@@ -83,17 +80,6 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
 
             await LoadTagStatisticsAsync(apps, _year);
             _shown = (apps, _year, _settingsService.TagColorsVersion); // building may colour new tags
-
-            // The chart is the point of this page; a vault that has moved or is on an unplugged
-            // drive must not take it down with it. The Export button reports failures out loud.
-            try
-            {
-                await _vaultExportService.ExportAsync(apps);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Vault export skipped: {ex.Message}");
-            }
         }
         catch (InvalidOperationException ex)
         {
@@ -131,28 +117,6 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
     [RelayCommand] private Task NextYear() => ChangeYearAsync(1);
 
     [RelayCommand] private Task Refresh() => RefreshAsync(forceReload: true);
-
-    // The same export RefreshAsync runs silently, but here the outcome is the whole point, so
-    // every branch says something - including "you have not switched it on yet".
-    [RelayCommand]
-    private async Task Export()
-    {
-        try
-        {
-            var apps = await _dataService.GetMergedDataAsync(forceReload: false);
-            string? path = await _vaultExportService.ExportAsync(apps);
-
-            if (path is null)
-                await _dialogs.AlertAsync("Vault Export",
-                    "No export folder is set. Choose one in Settings and enable the export.");
-            else
-                await _dialogs.AlertAsync("Vault Export", $"Written to:{Environment.NewLine}{path}");
-        }
-        catch (Exception ex)
-        {
-            await _dialogs.AlertAsync("Vault Export Failed", ex.Message);
-        }
-    }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Bound State
