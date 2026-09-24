@@ -1,4 +1,7 @@
 using System.ComponentModel;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using FluentAvalonia.UI.Controls;
@@ -17,6 +20,7 @@ public partial class MainWindow : FAAppWindow
         // Tunnel, and handled events too: the thumb buttons must work wherever the pointer is,
         // including over buttons, grids and charts that would otherwise swallow the press
         AddHandler(PointerPressedEvent, OnThumbButtonPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerPressedEvent, OnTitleBarPressed, RoutingStrategies.Tunnel);
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainWindowViewModel vm)
@@ -40,6 +44,51 @@ public partial class MainWindow : FAAppWindow
             };
 
         await ViewModel.NavigateToSectionAsync(section);
+    }
+
+    // Moving the window by its title bar.
+    //
+    // On Windows FAAppWindow draws its own title bar inside the window, and Avalonia 12 only lets
+    // Windows drag where the element under the pointer is marked as title bar. When that native
+    // path does not take the press, it arrives here as an ordinary click on the strip above the
+    // page instead, and the window could not be moved at all. So a left press on that strip -
+    // anywhere outside the page content - starts the move explicitly, and a double click
+    // maximizes or restores, as a native title bar would.
+    private void OnTitleBarPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!OperatingSystem.IsWindows() || TitleBar.ExtendsContentIntoTitleBar) return;
+
+        var point = e.GetCurrentPoint(this);
+        if (!point.Properties.IsLeftButtonPressed || point.Position.Y >= TitleBar.Height) return;
+
+        // The page itself (navigation pane included) keeps its clicks, and so do the caption
+        // buttons (minimize, maximize, close) that share the strip
+        if (e.Source is Visual source && (source == NavView || NavView.IsVisualAncestorOf(source)
+                                          || IsCaptionControl(source)))
+            return;
+
+        e.Handled = true;
+        if (e.ClickCount == 2)
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        else
+            BeginMoveDrag(e);
+    }
+
+    private static bool IsCaptionControl(Visual visual)
+    {
+        for (Visual? v = visual; v is not null; v = v.GetVisualParent())
+        {
+            if (v is Button) return true;
+
+            // Caption buttons and the resize edges have roles of their own; leave them be
+            var role = Avalonia.Controls.Chrome.WindowDecorationProperties.GetElementRole(v);
+            if (role is not (WindowDecorationsElementRole.None
+                or WindowDecorationsElementRole.DecorationsElement
+                or WindowDecorationsElementRole.User
+                or WindowDecorationsElementRole.TitleBar))
+                return true;
+        }
+        return false;
     }
 
     // The mouse's thumb buttons: XButton1 is Back, XButton2 is Forward
