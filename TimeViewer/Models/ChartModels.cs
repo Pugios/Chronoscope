@@ -1,45 +1,27 @@
+using Avalonia;
+using Avalonia.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
 using LiveChartsCore;
-using LiveChartsCore.Kernel;
 using LiveChartsCore.Kernel.Sketches;
 using LiveChartsCore.Measure;
-using LiveChartsCore.SkiaSharpView.Painting;
 
 namespace TimeViewer;
 
-// Everything the pages hand to LiveCharts, plus the intermediate shapes the aggregation
+// Everything the views hand to the charts, plus the intermediate shapes the aggregation
 // produces on the way there.
 
-// One ring segment of MainPage's nested pie. Tags sit at ring 0 ([seconds, null]),
-// processes at ring 1 ([null, seconds]).
-public class PieData
-{
-    public string Name { get; set; } = "";
-    public double?[] Values { get; set; } = [];
-    public Func<ChartPoint, string> Formatter { get; } = point => TimeSpan.FromSeconds(point.Coordinate.PrimaryValue).ToString(@"hh\:mm");
-    public required SolidColorPaint Fill { get; set; }
-}
+// A single activity block on the timeline, after clamping to the window and merging.
+// Color is the one the pie gave the process, so the bar and the pie agree.
+public sealed record TimelineSlice(string Process, string Tag, DateTime Start, DateTime End, Color Color);
 
-// One segment of the day timeline bar. Each instance becomes one stacked row series
-// holding a single value, so together they stack into a single horizontal bar.
-// Carries no tooltip text: hovering is handled by MainPage against TimelineSlice instead,
-// because LiveCharts cannot hit test a stacked segment's drawn shape (see OnTimelinePointerMoved).
-public class TimelineData
-{
-    public string Name { get; init; } = "";          // process, or "" for a gap spacer
-    public double?[] Values { get; init; } = [];     // exactly ONE element: seconds
-    public required SolidColorPaint Fill { get; init; }
-}
-
-// A single activity block on the timeline, after clamping to the window and merging
-public sealed record TimelineSlice(string Process, string Tag, DateTime Start, DateTime End);
-
-// One row of MainPage's legend: a tag (Indent 0) or one of its processes (Indent 20)
+// One row of the day legend: a tag (IsTag) or one of its processes, indented beneath it
 public class LegendItem
 {
-    public string Name { get; set; } = "";
-    public string Duration { get; set; } = "";
-    public required Color Color { get; set; }
-    public Thickness Indent { get; set; }
+    public string Name { get; init; } = "";
+    public string Duration { get; init; } = "";
+    public Color Color { get; init; }
+    public bool IsTag { get; init; }
+    public Thickness Indent => IsTag ? new Thickness(0) : new Thickness(18, 0, 0, 0);
 }
 
 // One tag's daily totals in seconds, straight out of HeatmapAggregator and before any display
@@ -64,9 +46,8 @@ public class TagWeekHourTotals
 }
 
 // One drawn grid: its caption, the ready-made series and axes, its size, and its own legend strip.
-// The series and axes are built in StatisticsPage rather than in the DataTemplate, because their
-// labelers and tooltips close over the period they describe - and because binding them whole keeps
-// x:TypeArguments generics out of the XAML.
+// The series and axes are built in StatisticsViewModel rather than in the DataTemplate, because
+// their labelers and tooltips close over the period they describe.
 public class HeatmapPanel
 {
     public string Caption { get; init; } = "";    // "Year Overview" / "Active Hours"
@@ -83,12 +64,33 @@ public class HeatmapPanel
 // One tag's row on the Statistics page: the title, then its grids drawn left to right.
 // Each panel carries its own scale strip, because a Year Overview cell is one day while an
 // Active Hours cell is ~52 of that hour summed - the two sets of quartiles are not comparable.
-public class TagStatistics
+//
+// A card is built once per year shown and then only rearranged: its place, whether it is hidden
+// and which arrows apply all change in place. Rebuilding it would mean new charts, and a new chart
+// draws empty for a moment - every graph on the page would blink on each move.
+public partial class TagStatistics : ObservableObject
 {
     public string Tag { get; init; } = "";
     public Color TagColor { get; init; } = Colors.Transparent; // the dot beside the title
     public string TotalLabel { get; init; } = "";              // "412h over 231 days"
-    public HeatmapPanel[] Panels { get; init; } = [];          // exactly two, in draw order
+
+    // Exactly two, in draw order - once built. They start empty and are filled a card at a time
+    // after the page is up (and only when the card is shown), because creating ~50 charts in one
+    // go froze the window for a second or more on a full year.
+    [ObservableProperty] public partial HeatmapPanel[] Panels { get; set; } = [];
+
+    [ObservableProperty] public partial int DisplayIndex { get; set; }  // place on the page
+    [ObservableProperty] public partial bool IsHidden { get; set; }
+    [ObservableProperty] public partial bool CanMoveUp { get; set; }    // not already first / last
+    [ObservableProperty] public partial bool CanMoveDown { get; set; }
+}
+
+// A tag hidden from the Statistics page, listed at the bottom so it can be brought back
+public class HiddenTag
+{
+    public string Tag { get; init; } = "";
+    public Color TagColor { get; init; } = Colors.Transparent;
+    public string TotalLabel { get; init; } = "";
 }
 
 // One step of a heatmap's legend: the shade, and the span of tracked time it stands for.

@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using System.Diagnostics;
+using System.Globalization;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -16,22 +17,119 @@ public class VaultExportService
     public const string FileName = "timeviewer-heatmap.json";
 
     private readonly SettingsService _settingsService;
+    private readonly DataService _dataService;
 
-    public VaultExportService(SettingsService settingsService)
+    // No page asks for an export: it follows the data. Every reload (either page's Reload button,
+    // the day view's timer, the reload after a tag edit) and every colour change rewrites the file.
+    public VaultExportService(SettingsService settingsService, DataService dataService)
     {
         _settingsService = settingsService;
+        _dataService = dataService;
+
+        _dataService.DataReloaded += RequestExport;
+        _settingsService.TagColorsChanged += RequestExport;
     }
 
     public bool IsConfigured =>
         _settingsService.ObsidianExportEnabled &&
         !string.IsNullOrWhiteSpace(_settingsService.ObsidianExportPath);
 
-    // Returns the path written, or null when the export is switched off or unconfigured.
-    // Throws only on a real IO problem, which the caller decides whether to surface.
-    public async Task<string?> ExportAsync(IEnumerable<AppsTagsTable> data)
-    {
-        if (!IsConfigured) return null;
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Status
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Nothing awaits an export any more, so its outcome is kept here for Settings to show.
 
+    // When the file in the vault was last written - read from the file itself, so it survives a
+    // restart and cannot claim a write that never landed. Null when there is no such file.
+    public DateTime? LastWrittenAt
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_settingsService.ObsidianExportPath)) return null;
+            try
+            {
+                var file = new FileInfo(Path.Combine(_settingsService.ObsidianExportPath, FileName));
+                return file.Exists ? file.LastWriteTime : null;
+            }
+            catch (Exception)
+            {
+                return null;   // a malformed path is reported by the export itself
+            }
+        }
+    }
+
+    // Why the latest attempt failed, and when. Cleared by the next export that succeeds.
+    public string? LastError { get; private set; }
+    public DateTime? LastErrorAt { get; private set; }
+
+    // Raised after every attempt, successful or not
+    public event Action? StatusChanged;
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Scheduling
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // The same shape as SettingsService's saves: Tags saves one colour per tag in a loop, and a
+    // reload can land while an export is still writing. Both would otherwise race on one .tmp
+    // file. So a request only marks the export dirty, one writer runs at a time, and it keeps
+    // going until nothing new was asked for - the file always ends up matching the latest state.
+    private readonly SemaphoreSlim _exportGate = new(1, 1);
+    private int _exportPending;
+
+    public void RequestExport()
+    {
+        if (Interlocked.Exchange(ref _exportPending, 1) == 1) return;
+        _ = DrainExportsAsync();
+    }
+
+    private async Task DrainExportsAsync()
+    {
+        // Let the caller's synchronous burst (a colour per tag) finish first, so it becomes one
+        // export instead of one now and a second for everything after the first colour
+        await Task.Yield();
+
+        await _exportGate.WaitAsync();
+        try
+        {
+            while (Interlocked.Exchange(ref _exportPending, 0) == 1)
+                await ExportOnceAsync();
+        }
+        finally
+        {
+            _exportGate.Release();
+        }
+    }
+
+    private async Task ExportOnceAsync()
+    {
+        // Never loaded, or just invalidated: nothing worth writing. The reload that follows
+        // raises DataReloaded and comes back here with real data.
+        var data = _dataService.CachedAppsTags;
+        if (!IsConfigured || data.Count == 0) return;
+
+        try
+        {
+            await ExportAsync(data);
+            LastError = null;
+            LastErrorAt = null;
+        }
+        catch (Exception ex)
+        {
+            // Nothing is awaiting this, so an escaping exception would be an unobserved crash.
+            // A vault on an unplugged drive must not take the app with it; Settings shows why.
+            Debug.WriteLine($"Vault export failed: {ex.Message}");
+            LastError = ex.Message;
+            LastErrorAt = DateTime.Now;
+        }
+
+        StatusChanged?.Invoke();
+    }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Writing the File
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Only ever called with _exportGate held. Throws on a real IO problem.
+    private async Task ExportAsync(IReadOnlyList<AppsTagsTable> data)
+    {
         string folder = _settingsService.ObsidianExportPath;
 
         // Deliberately not CreateDirectory: a stale path (vault moved, drive unplugged) should be
@@ -41,7 +139,9 @@ public class VaultExportService
 
         // Every year, not just the one on screen - otherwise the vault could only ever render
         // the current year.
-        var perTag = HeatmapAggregator.AggregateTagDays(data, year: null);
+        // Off the UI thread: it walks every year of the dataset, and this runs on every reload.
+        // The data is never mutated once loaded, so reading it from here is safe.
+        var perTag = await Task.Run(() => HeatmapAggregator.AggregateTagDays(data, year: null));
 
         var payload = new HeatmapExport
         {
@@ -87,10 +187,8 @@ public class VaultExportService
         // swap it in: a reader sees either the old file or the new one, never a truncated one.
         string finalPath = Path.Combine(folder, FileName);
         string tempPath = finalPath + ".tmp";
-        await File.WriteAllTextAsync(tempPath, json);
+        await Task.Run(() => File.WriteAllText(tempPath, json));
         File.Move(tempPath, finalPath, overwrite: true);
-
-        return finalPath;
     }
 
     // The cut points the Statistics page colours this tag by, per year, in seconds.

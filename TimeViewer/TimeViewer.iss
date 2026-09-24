@@ -1,11 +1,15 @@
+; Same AppId as the old MAUI installer, so it upgrades an existing install in place - and the
+; app reads the same data folder, so tags and rules carry over.
+; Build first:  dotnet publish -c Release -r win-x64 --self-contained
+
 [Setup]
 AppId={{bd30d463-63bd-4623-a1a0-7da3305e8e14}
 AppName=TimeViewer
-AppVersion=0.3
+AppVersion=1.0
 AppPublisher=Mohamed Matar
 DefaultDirName={autopf}\TimeViewer
 DefaultGroupName=TimeViewer
-SetupIconFile=Resources\AppIcon\favicon.ico
+SetupIconFile=Assets\appicon.ico
 OutputDir=installer
 OutputBaseFilename=TimeViewerSetup
 Compression=lzma
@@ -22,7 +26,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "bin\Release\net10.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\TimeViewer"; Filename: "{app}\TimeViewer.exe"; IconFilename: "{app}\TimeViewer.exe"

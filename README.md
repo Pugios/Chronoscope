@@ -1,48 +1,121 @@
-# Time Management
+# TimeViewer
 
-I find it fascinating to discover patterns in everything, including my own life.
-Time Management is a system I built to observe my own behavior and understand how I actually spend my time on the PC each day.
+**See where your time on the PC actually goes, grouped the way *you* think about it.**
 
-To track myself, I use ManicTime (https://www.manictime.com/), which records the active window throughout the day. **This app is dependant on ManicTime's Data!**  You need to also install their App for mine to work!
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./pics/TV1.png">
+  <img alt="TimeViewer's Day page: a nested pie of tags and their apps, a legend, and a 24h timeline" src="./pics/TV1_light.png">
+</picture>
 
-While it already provides some built-in views, it can still be hard to get a quick and clear picture of how long you actually work.
+I find it fascinating to discover patterns in everything, including my own life. TimeViewer is the
+tool I built to observe my own behaviour and understand how I really spend each day at the computer.
 
-TimeViewer is a Windows desktop app built with .NET MAUI that solves this. It pulls raw app-usage data from ManicTime and lets you organise it through two layers of customisation:
+It sits on top of [ManicTime](https://www.manictime.com/), which quietly records the active window
+all day. ManicTime's own views make it hard to get a quick, honest answer to *"how long did I actually
+work today?"*. TimeViewer answers it: you sort every app into your own categories (tags) once, and
+from then on every day, week and year is broken down by them.
 
-1. Tag rules: map each process (e.g. outlook.exe) to a category like "Work" or "Gaming".
-2. Explorer rules: for multi-purpose apps like browsers, apply pattern-matching rules on the open document or URL to assign more specific sub-tags (e.g. a browser tab titled "GitHub" → "Work").
+> **TimeViewer needs ManicTime.** It reads ManicTime's data through its command line tool
+> (`mtc.exe`), so ManicTime has to be installed and tracking for TimeViewer to show anything.
 
-The result is displayed as an interactive nested pie chart you can navigate day by day to analyse your own behaviour.
+## Features
 
-### Avalonia build
+### Day view
+A nested pie chart of one day: your tags on the inside, the apps behind them on the outside, and the
+total tracked time in the middle. Beneath it, a **24h timeline** shows *when* each thing happened,
+with details on hover.
 
-[`Avalonia/`](./Avalonia/) is a port of the MAUI app to [Avalonia](https://avaloniaui.net/) with
-[FluentAvalonia](https://github.com/amwx/FluentAvalonia)'s Fluent design: a navigation pane (Day,
-Statistics, Tags, Settings, pin-on-top), card layout, light and dark theme following the system, and the
-system accent colour. Features and data are the same as the MAUI app - it reads the same
-`tags.csv`, `explorer-processes.csv` and `settings.json`, so an existing setup carries straight over.
-It no longer needs a Syncfusion licence.
+- "Today" shows the **rolling last 24 hours**, so the chart is never empty just after midnight
+- Step back and forth by day or by week, or jump straight back to today
+- Refreshes itself from ManicTime on a timer you choose (every 5 minutes by default)
+
+### Statistics
+<img alt="Statistics page with a year heatmap and an active-hours grid per tag" src="./pics/TV5.png">
+
+A card per tag for the whole year:
+
+- **Year Overview**: a GitHub-style heatmap, one cell per day
+- **Active Hours**: a weekday × hour grid showing *when* in the week you spend time on that tag
+- Each tag is shaded against its own year, so a dark cell means "a heavy day for this tag". Every
+  card has its own legend with the real durations behind each shade
+- Reorder the cards, or hide tags you don't care about. The layout is remembered
+
+### Tags
+<img alt="Tags page with tag colours and the searchable process table" src="./pics/TV2.png">
+
+Every process ManicTime has ever seen, with its total time and when it was last used.
+
+- Search by process or tag, multi-select rows and assign a tag (or create a new one) in one go
+- Pick each tag's colour with a full colour picker. The colours carry through to every chart
+
+<img alt="The colour picker open on a tag" src="./pics/TV3.png" width="70%">
+
+### Subprocess rules
+<img alt="Subprocess rules for Visual Studio, with a live preview of the matching activities" src="./pics/TV4.png">
+
+Some apps are used for many things: a browser can be work or YouTube, an editor can be one
+project or another. For those, you can split the app by **what it had open**:
+
+- Match on the window name, the document name or the domain, by prefix, substring or suffix
+- Rules are ordered and the first match wins. Reorder them any time
+- A **live preview** shows exactly which activities each rule catches before you confirm
+
+### Settings
+<img alt="Settings page: mtc.exe path, refresh interval, tagging files and the Obsidian export" src="./pics/TV6.png">
+
+- Point TimeViewer at `mtc.exe` and choose the refresh interval
+- Keep `tags.csv` and `explorer-processes.csv` wherever you like, for example in a synced folder
+  shared between machines
+- **Obsidian export**: write per-tag heatmap data into your vault on every refresh, with the time of
+  the last export (or the reason it failed) shown right here. [More below](#obsidian-heatmap-export)
+
+### And around it
+- Fluent design with a navigation pane, following your **system light/dark theme and accent colour**
+- **Keep on top** pin, handy for a small window in the corner of your screen
+- Navigate back and forward with the mouse's thumb buttons
+- All your data stays on your machine: plain CSV and JSON files you can read, edit and back up
+
+## Getting started
+
+1. Install [ManicTime](https://www.manictime.com/) and let it track for a while.
+2. Download `TimeViewerSetup.exe` from the [latest release](https://github.com/Pugios/TimeManagement/releases/latest) and install it.
+   Windows 10 (1809) or later, x64.
+3. In **Settings**, check the path to `mtc.exe` (the default is `C:\Program Files\ManicTime\mtc.exe`).
+4. Open **Tags**, sort the table by Total Time and start tagging your biggest apps. Anything you
+   haven't tagged yet is counted under **No Clue**, so there's no need to do it all at once.
+
+Your tags, rules and settings live in `%LOCALAPPDATA%\TimeViewer\com.pugio.timeviewer\Data`.
+
+## Tech stack
+
+TimeViewer is a .NET desktop app on a cross-platform UI stack, built entirely on free, open-source
+libraries:
+
+| | |
+|---|---|
+| Runtime | [.NET 10](https://dotnet.microsoft.com/), C# |
+| UI framework | [Avalonia 12](https://avaloniaui.net/) |
+| Design | [FluentAvalonia](https://github.com/amwx/FluentAvalonia) (WinUI-style Fluent controls, system theme and accent) |
+| Charts | [LiveCharts2](https://livecharts.dev/) on SkiaSharp (pie, heatmaps) plus a custom-drawn timeline control |
+| Architecture | MVVM with [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) source generators and compiled bindings |
+| Data | ManicTime CLI (`mtc.exe`) exports, parsed with [CsvHelper](https://joshclose.github.io/CsvHelper/) |
+| Installer | [Inno Setup](https://jrsoftware.org/isinfo.php) |
+
+TimeViewer started out as a .NET MAUI app. Version 1.0 is a full rewrite in Avalonia: a proper
+desktop UI instead of a mobile-first one, no commercial component licences, and a path to Linux.
+It reads the same files as the MAUI version, so an existing setup carries straight over. The MAUI
+code is preserved at the [`maui-final`](https://github.com/Pugios/TimeManagement/tree/maui-final) tag.
+
+### Building from source
 
 ```
-cd Avalonia
+cd TimeViewer
 dotnet run                                            # develop
-dotnet publish -c Release -r win-x64 --self-contained # then build TimeViewer.iss for the installer
+dotnet publish -c Release -r win-x64 --self-contained # then compile TimeViewer.iss for the installer
 ```
 
-For the larger picture, [Analysis](./Analysis/) provides several Python scripts to identify longer-term trends. My goal is to eventually surface these statistics in the app as well.
-
----
-Home Page
-![](./pics/TM1.png)
-
-Assigning processes to tags.
-![](./pics/TM2.png)
-
-Easy searchability. Initial setup can be cumbersome, but the results are fantastic!
-![](./pics/TM3.png)
-
-Some apps are more complex. Apps like Firefox or Chrome can be used in many different ways — for those, more refined Explorer rules can be assigned.
-![](./pics/TM4.png)
+For the longer-term picture, [Analysis](./Analysis/) holds the Python scripts I used to find
+trends before the Statistics page existed.
 
 ---
 
@@ -54,9 +127,10 @@ render a calendar per tag next to whatever else you already track there.
 
 Enable it in **Settings**: pick a folder and flip the switch. The folder **must be inside the
 vault** - dataviewjs' `dv.io.load()` resolves vault-relative paths only, so anything outside it is
-unreachable from a note. TimeViewer then writes `timeviewer-heatmap.json` there on every Statistics
-page refresh, and on demand via **Export to Vault**. Dataview notices the change and re-renders on
-its own; the two apps never talk directly.
+unreachable from a note. TimeViewer then rewrites `timeviewer-heatmap.json` there every time it
+loads data from ManicTime (either Reload button or the automatic refresh) and whenever a tag colour
+changes. Settings shows when the file was last written, or why the last attempt failed. Dataview
+notices the change and re-renders on its own; the two apps never talk directly.
 
 ### Format
 

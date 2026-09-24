@@ -1,4 +1,6 @@
-﻿using SkiaSharp;
+using Avalonia;
+using Avalonia.Styling;
+using SkiaSharp;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -72,7 +74,12 @@ public class SettingsService
             }
 
             var json = await File.ReadAllTextAsync(_filePath);
+            var old = _settings.TagColors;
             _settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            // Reloaded on every visit to the day view; only an actual difference counts as a change
+            if (old.Count != _settings.TagColors.Count
+                || old.Any(kv => !_settings.TagColors.TryGetValue(kv.Key, out var c) || c != kv.Value))
+                OnTagColorsChanged();
         }
         catch (Exception ex)
         {
@@ -128,6 +135,27 @@ public class SettingsService
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Refresh Interval
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Every refresh relaunches mtc.exe twice and takes a few seconds, so a minute is the floor.
+    // Clamped on the way out as well as in: a hand-edited 0 in settings.json would otherwise give
+    // the DispatcherTimer a zero interval and have it fire back to back.
+    public const int MinRefreshMinutes = 1;
+    public const int MaxRefreshMinutes = 24 * 60;
+
+    public int RefreshMinutes
+    {
+        get => Math.Clamp(_settings.RefreshMinutes, MinRefreshMinutes, MaxRefreshMinutes);
+        set
+        {
+            _settings.RefreshMinutes = Math.Clamp(value, MinRefreshMinutes, MaxRefreshMinutes);
+            RequestSave();
+        }
+    }
+
+    public TimeSpan RefreshInterval => TimeSpan.FromMinutes(RefreshMinutes);
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Obsidian Vault Export
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -152,8 +180,86 @@ public class SettingsService
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Tagging Files
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // settings.json itself cannot move - it is where these paths are remembered.
+
+    public static readonly string DefaultTagsCsvPath = Path.Combine(FileSystem.AppDataDirectory, "tags.csv");
+    public static readonly string DefaultExplorerRulesCsvPath = Path.Combine(FileSystem.AppDataDirectory, "explorer-processes.csv");
+
+    public string TagsCsvPath
+    {
+        get => OrDefault(_settings.TagsCsvPath, DefaultTagsCsvPath);
+        set
+        {
+            _settings.TagsCsvPath = StoredPath(value, DefaultTagsCsvPath);
+            RequestSave();
+        }
+    }
+
+    public string ExplorerRulesCsvPath
+    {
+        get => OrDefault(_settings.ExplorerRulesCsvPath, DefaultExplorerRulesCsvPath);
+        set
+        {
+            _settings.ExplorerRulesCsvPath = StoredPath(value, DefaultExplorerRulesCsvPath);
+            RequestSave();
+        }
+    }
+
+    private static string OrDefault(string path, string fallback) =>
+        string.IsNullOrWhiteSpace(path) ? fallback : path;
+
+    // The default is stored as "", so it keeps following the app data folder rather than
+    // being frozen to whatever that resolved to on the day it was saved
+    private static string StoredPath(string path, string fallback) =>
+        string.IsNullOrWhiteSpace(path) || PathsEqual(path, fallback) ? "" : path;
+
+    public static bool PathsEqual(string a, string b) =>
+        string.Equals(Path.GetFullPath(a), Path.GetFullPath(b),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Statistics Arrangement
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Written as soon as they change: the Statistics page has no Save button to wait for.
+
+    public IReadOnlyList<string> StatisticsTagOrder
+    {
+        get => _settings.StatisticsTagOrder;
+        set
+        {
+            _settings.StatisticsTagOrder = value.ToList();
+            RequestSave();
+        }
+    }
+
+    public IReadOnlyList<string> StatisticsHiddenTags
+    {
+        get => _settings.StatisticsHiddenTags;
+        set
+        {
+            _settings.StatisticsHiddenTags = value.ToList();
+            RequestSave();
+        }
+    }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Tag Colors
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    // Bumped on every colour change, so a kept page can tell whether what it drew is still current
+    public int TagColorsVersion { get; private set; }
+
+    // The same moment, for whoever has to act on it rather than poll: the vault export carries
+    // every tag's colour and ramp, so a new colour has to reach the file without a data reload.
+    public event Action? TagColorsChanged;
+
+    private void OnTagColorsChanged()
+    {
+        TagColorsVersion++;
+        TagColorsChanged?.Invoke();
+    }
 
     // Expose all Tag Colors as ReadOnly
     public IReadOnlyDictionary<string, string> TagColors => _settings.TagColors;
@@ -165,11 +271,9 @@ public class SettingsService
             return color;
 
         // Auto-assign a random color and save it
-        color = Color.FromRgb(
-            (byte)Random.Shared.Next(256),
-            (byte)Random.Shared.Next(256),
-            (byte)Random.Shared.Next(256)).ToHex();
+        color = $"#{Random.Shared.Next(256):X2}{Random.Shared.Next(256):X2}{Random.Shared.Next(256):X2}";
         _settings.TagColors[tag] = color;
+        OnTagColorsChanged();
         RequestSave();
         return color;
     }
@@ -191,7 +295,7 @@ public class SettingsService
     public string[] BuildTagRamp(string hex, int steps)
     {
         var ramp = new string[steps + 1];
-        ramp[0] = Application.Current?.RequestedTheme == AppTheme.Dark ? "#2D333B" : "#EBEDF0";
+        ramp[0] = Application.Current?.ActualThemeVariant == ThemeVariant.Dark ? "#2D333B" : "#EBEDF0";
 
         var color = SKColor.Parse(hex);
         color.ToHsv(out float h, out float s, out float v);
@@ -210,13 +314,15 @@ public class SettingsService
     // Set a new Color
     public void SetTagColor(string tag, string color)
     {
+        if (_settings.TagColors.TryGetValue(tag, out var old) && old == color) return;
         _settings.TagColors[tag] = color;
+        OnTagColorsChanged();
         RequestSave();
     }
 
     public void DeleteTagColor(string tag)
     {
-        _settings.TagColors.Remove(tag);
+        if (_settings.TagColors.Remove(tag)) OnTagColorsChanged();
         RequestSave();
     }
 }
