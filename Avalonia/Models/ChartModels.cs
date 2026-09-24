@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
 using LiveChartsCore;
 using LiveChartsCore.Kernel.Sketches;
 using LiveChartsCore.Measure;
@@ -63,14 +64,21 @@ public class HeatmapPanel
 // One tag's row on the Statistics page: the title, then its grids drawn left to right.
 // Each panel carries its own scale strip, because a Year Overview cell is one day while an
 // Active Hours cell is ~52 of that hour summed - the two sets of quartiles are not comparable.
-public class TagStatistics
+//
+// A card is built once per year shown and then only rearranged: its place, whether it is hidden
+// and which arrows apply all change in place. Rebuilding it would mean new charts, and a new chart
+// draws empty for a moment - every graph on the page would blink on each move.
+public partial class TagStatistics : ObservableObject
 {
     public string Tag { get; init; } = "";
     public Color TagColor { get; init; } = Colors.Transparent; // the dot beside the title
     public string TotalLabel { get; init; } = "";              // "412h over 231 days"
     public HeatmapPanel[] Panels { get; init; } = [];          // exactly two, in draw order
-    public bool CanMoveUp { get; init; }                       // not already first / last
-    public bool CanMoveDown { get; init; }
+
+    [ObservableProperty] public partial int DisplayIndex { get; set; }  // place on the page
+    [ObservableProperty] public partial bool IsHidden { get; set; }
+    [ObservableProperty] public partial bool CanMoveUp { get; set; }    // not already first / last
+    [ObservableProperty] public partial bool CanMoveDown { get; set; }
 }
 
 // A tag hidden from the Statistics page, listed at the bottom so it can be brought back

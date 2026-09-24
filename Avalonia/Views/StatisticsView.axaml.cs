@@ -12,11 +12,10 @@ namespace TimeViewer.Views;
 // The tag cards' arrange buttons run through here rather than straight to the view model, so
 // every change can be animated:
 //  - Hide: the card drops a little and fades out, then goes; the cards below slide up.
-//  - Move up / down, Show: the cards are rebuilt in the new order (each chart has to be, see
-//    StatisticsViewModel), then every card starts drawn where it USED to be and slides to where it
-//    is now ("FLIP"). A card that was not there before, one brought back, fades in instead.
-// Only transforms and opacity are animated, never layout, so this costs next to nothing next to
-// the chart rebuild the change needs anyway. Transform animations run on the card itself: Avalonia
+//  - Move up / down, Show: the cards take their new places, then every card starts drawn where it
+//    USED to be and slides to where it is now ("FLIP"). A card brought back fades in instead.
+// Only transforms and opacity are animated, never layout, and no chart is rebuilt (the cards are
+// only rearranged), so this costs next to nothing. Transform animations run on the card itself: Avalonia
 // drives the card's RenderTransform from there, and refuses to animate a transform directly.
 public partial class StatisticsView : UserControl
 {
@@ -91,7 +90,8 @@ public partial class StatisticsView : UserControl
     // Positions
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    private IEnumerable<Control> Cards() => TagCards.GetRealizedContainers();
+    // The cards on screen; a hidden card keeps its container, collapsed
+    private IEnumerable<Control> Cards() => TagCards.GetRealizedContainers().Where(c => c.IsVisible);
 
     private Control? CardFor(string tag) =>
         Cards().FirstOrDefault(c => c.DataContext is TagStatistics s && s.Tag == tag);
@@ -125,13 +125,9 @@ public partial class StatisticsView : UserControl
         return Task.WhenAll(drop.RunAsync(card), Fade(card, 1, 0, HideDuration, new CubicEaseIn()));
     }
 
-    // Waits for the rebuilt cards to be laid out, then plays each one from its old position.
-    //
-    // Three steps, because the rebuild is the expensive part: every card's charts are new, and
-    // building and first-drawing them keeps the UI thread busy for longer than the slide lasts.
-    // Started straight away, the animation would be over before the first frame showed it. So the
-    // cards are first parked where they used to be (nothing visibly jumps), the charts are left to
-    // settle, and only then does everything slide into place.
+    // Waits for the cards to be laid out in their new places, parks each one back where it was
+    // (so nothing visibly jumps), and slides it home. The cards are the same controls as before -
+    // only their places changed - so there is nothing to wait for beyond that layout pass.
     private async Task SlideFrom(Dictionary<string, double> before)
     {
         await NextLayout();
@@ -144,7 +140,9 @@ public partial class StatisticsView : UserControl
 
             if (!before.TryGetValue(stats.Tag, out double oldY))
             {
-                // Newly shown: nothing to slide from, so it fades in where it lands
+                // Newly shown: nothing to slide from, so it fades in where it lands. It still
+                // carries the drop from when it was hidden; that goes.
+                card.RenderTransform = null;
                 card.Opacity = 0;
                 arrivals.Add(card);
                 continue;
@@ -158,8 +156,6 @@ public partial class StatisticsView : UserControl
         }
 
         if (moves.Count == 0 && arrivals.Count == 0) return;
-
-        await Settle();
 
         var runs = new List<Task>();
         foreach (var (card, offset) in moves)
@@ -187,21 +183,6 @@ public partial class StatisticsView : UserControl
         foreach (var card in arrivals) card.ClearValue(OpacityProperty);
     }
 
-    // Lets the rebuilt charts do their deferred first update (LiveCharts batches it behind a short
-    // throttle), then waits for the UI thread to go idle and one more frame to be drawn
-    private async Task Settle()
-    {
-        await Task.Delay(80);
-        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
-
-        var frame = new TaskCompletionSource();
-        if (TopLevel.GetTopLevel(this) is { } top)
-            top.RequestAnimationFrame(_ => frame.TrySetResult());
-        else
-            frame.TrySetResult();
-        await frame.Task;
-    }
-
     private static Task Fade(Control control, double from, double to, TimeSpan duration, Easing easing) =>
         new Animation
         {
@@ -215,8 +196,7 @@ public partial class StatisticsView : UserControl
             }
         }.RunAsync(control);
 
-    // The cards are replaced by new containers when the list changes; their positions exist only
-    // once the next layout pass has run
+    // The new places exist only once the next layout pass has run
     private Task NextLayout()
     {
         var done = new TaskCompletionSource();
@@ -226,7 +206,7 @@ public partial class StatisticsView : UserControl
             done.TrySetResult();
         }
         TagCards.LayoutUpdated += OnLayout;
-        TagCards.InvalidateMeasure();
+        TagCards.ItemsPanelRoot?.InvalidateMeasure();
         return done.Task;
     }
 }

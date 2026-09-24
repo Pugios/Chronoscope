@@ -213,9 +213,10 @@ public partial class StatisticsViewModel : ViewModelBase
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Order & Hidden Tags
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    // The year's totals are kept, so moving or hiding a tag only redraws the cards; it never costs
-    // another pass over the data. The cards ARE rebuilt, though, rather than shuffled: each chart
-    // disposes its series when it unloads, so a card moved to a new container must bring new ones.
+    // Moving or hiding a tag rearranges the cards already on the page: no pass over the data, no
+    // new charts. They are not moved between containers either - a chart unloaded and loaded again
+    // would have disposed its series on the way - the page stacks them by DisplayIndex instead,
+    // and a hidden card is only collapsed.
 
     private sealed record BuiltYear(int Year, DateTime FirstCell, int WeekCount,
         List<TagDailyTotals> PerTag, Dictionary<string, TagWeekHourTotals> PerTagHours);
@@ -233,42 +234,26 @@ public partial class StatisticsViewModel : ViewModelBase
             .ToList();
     }
 
+    // Every card of the year, hidden ones included, each with its charts. Built once per load;
+    // everything after that only rearranges them (see ApplyArrangement).
     private void BuildTagCards()
     {
         if (_built is null) return;
         var (year, firstCell, weekCount, perTag, perTagHours) = _built;
 
-        var byName = perTag.ToDictionary(t => t.Tag);
-        var hidden = _settingsService.StatisticsHiddenTags;
-        var arranged = ArrangedTags();
-        var visible = arranged.Where(t => !hidden.Contains(t)).ToList();
-
-        HiddenTags = arranged
-            .Where(hidden.Contains)
-            .Select(t => new HiddenTag
-            {
-                Tag = t,
-                TagColor = Color.Parse(_settingsService.GetTagColor(t)),
-                TotalLabel = TotalLabelFor(byName[t])
-            })
-            .ToArray();
-
-        var stats = new List<TagStatistics>();
-        foreach (var tag in visible.Select(t => byName[t]))
+        var cards = new List<TagStatistics>();
+        foreach (var tag in perTag)
         {
             // One colour per tag, one ramp from it, shared by both of that tag's grids. A shade
             // stands for a different span in each, which is why each panel carries its own strip.
             string tagColor = _settingsService.GetTagColor(tag.Tag);
             string[] ramp = _settingsService.BuildTagRamp(tagColor, HeatmapAggregator.ShadeLevels);
 
-
-            stats.Add(new TagStatistics
+            cards.Add(new TagStatistics
             {
                 Tag = tag.Tag,
                 TagColor = Color.Parse(tagColor),
                 TotalLabel = TotalLabelFor(tag),
-                CanMoveUp = stats.Count > 0,
-                CanMoveDown = stats.Count < visible.Count - 1,
                 Panels =
                 [
                     BuildYearPanel(tag, ramp, year, firstCell, weekCount),
@@ -277,10 +262,43 @@ public partial class StatisticsViewModel : ViewModelBase
             });
         }
 
-        TagStats = stats.ToArray();
+        TagStats = cards.ToArray();
+        ApplyArrangement();
 
-        Debug.WriteLine($"Tag statistics built: {stats.Count} tags, {weekCount} week columns, "
+        Debug.WriteLine($"Tag statistics built: {cards.Count} tags, {weekCount} week columns, "
             + $"{HeatmapAggregator.WeekdayCount}x{HeatmapAggregator.HourCount} active hour cells");
+    }
+
+    // Puts the existing cards in the stored order and hides the stored hidden ones, in place.
+    // The cards' container order never changes; the page stacks them by DisplayIndex.
+    private void ApplyArrangement()
+    {
+        if (_built is null) return;
+
+        var hidden = _settingsService.StatisticsHiddenTags;
+        var arranged = ArrangedTags();
+        var visible = arranged.Where(t => !hidden.Contains(t)).ToList();
+        var byTag = TagStats.ToDictionary(c => c.Tag);
+
+        foreach (var card in TagStats)
+        {
+            card.IsHidden = hidden.Contains(card.Tag);
+            card.DisplayIndex = arranged.IndexOf(card.Tag);
+
+            int place = visible.IndexOf(card.Tag);
+            card.CanMoveUp = place > 0;
+            card.CanMoveDown = place >= 0 && place < visible.Count - 1;
+        }
+
+        HiddenTags = arranged
+            .Where(hidden.Contains)
+            .Select(t => new HiddenTag
+            {
+                Tag = t,
+                TagColor = byTag[t].TagColor,
+                TotalLabel = byTag[t].TotalLabel
+            })
+            .ToArray();
     }
 
     private static string TotalLabelFor(TagDailyTotals tag) =>
@@ -311,21 +329,21 @@ public partial class StatisticsViewModel : ViewModelBase
         _settingsService.StatisticsTagOrder = arranged
             .Concat(_settingsService.StatisticsTagOrder.Where(t => !arranged.Contains(t)))
             .ToList();
-        BuildTagCards();
+        ApplyArrangement();
     }
 
     [RelayCommand]
     private void HideTag(TagStatistics card)
     {
         _settingsService.StatisticsHiddenTags = _settingsService.StatisticsHiddenTags.Append(card.Tag).Distinct().ToList();
-        BuildTagCards();
+        ApplyArrangement();
     }
 
     [RelayCommand]
     private void ShowTag(HiddenTag hidden)
     {
         _settingsService.StatisticsHiddenTags = _settingsService.StatisticsHiddenTags.Where(t => t != hidden.Tag).ToList();
-        BuildTagCards();
+        ApplyArrangement();
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
