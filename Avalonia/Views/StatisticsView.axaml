@@ -3,6 +3,7 @@
              xmlns:vm="using:TimeViewer.ViewModels"
              xmlns:local="using:TimeViewer"
              xmlns:conv="using:TimeViewer.Converters"
+             xmlns:controls="using:TimeViewer.Controls"
              xmlns:ui="using:FluentAvalonia.UI.Controls"
              xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -98,6 +99,7 @@
                              keeps the plot area exactly the grid so the cells stay square.
                              Animating ~540 cells per tag would only stutter. -->
                         <lvc:CartesianChart Series="{Binding Series}"
+                                            controls:ChartPaints.OwnTooltip="True"
                                             XAxes="{Binding XAxes}"
                                             YAxes="{Binding YAxes}"
                                             DrawMargin="{Binding DrawMargin}"

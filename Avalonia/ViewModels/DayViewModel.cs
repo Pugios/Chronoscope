@@ -51,7 +51,15 @@ public partial class DayViewModel : ViewModelBase
         _refreshTimer.Start();
     }
 
-    public override void OnNavigatedFrom() => _refreshTimer.Stop();
+    public override void OnNavigatedFrom()
+    {
+        _refreshTimer.Stop();
+
+        // A chart disposes the paints of the series it drew when it unloads, so series must never
+        // outlive their chart: the next visit builds a new view, and handing it these would draw
+        // with disposed Skia objects. OnNavigatedToAsync always redraws, so nothing is lost.
+        PieSeries = [];
+    }
 
     private bool _isRefreshing;
     private bool _refreshQueued;

@@ -51,6 +51,10 @@ public partial class StatisticsViewModel : ViewModelBase
 
     public override Task OnNavigatedToAsync() => RefreshAsync();
 
+    // Same rule as the day view: the charts dispose their series' and axes' paints on unload, so
+    // a later visit (Back / Forward) must get fresh ones rather than these. RefreshAsync rebuilds.
+    public override void OnNavigatedFrom() => TagStats = [];
+
     [ObservableProperty]
     public partial bool IsBusy { get; private set; }
 
@@ -198,7 +202,7 @@ public partial class StatisticsViewModel : ViewModelBase
             // stands for a different span in each, which is why each panel carries its own strip.
             string tagColor = _settingsService.GetTagColor(tag.Tag);
             string[] ramp = _settingsService.BuildTagRamp(tagColor, HeatmapAggregator.ShadeLevels);
-            var labels = LabelPaint();
+
 
             stats.Add(new TagStatistics
             {
@@ -207,8 +211,8 @@ public partial class StatisticsViewModel : ViewModelBase
                 TotalLabel = $"{TimeSpan.FromSeconds(tag.TotalSeconds).TotalHours:F0}h over {tag.Days.Count} days",
                 Panels =
                 [
-                    BuildYearPanel(tag, ramp, year, firstCell, weekCount, labels),
-                    BuildActiveHoursPanel(perTagHours[tag.Tag], ramp, labels)
+                    BuildYearPanel(tag, ramp, year, firstCell, weekCount),
+                    BuildActiveHoursPanel(perTagHours[tag.Tag], ramp)
                 ]
             });
         }
@@ -225,7 +229,7 @@ public partial class StatisticsViewModel : ViewModelBase
 
     // The GitHub contributions grid: X = week column, Y = weekday, one cell per day of the year.
     private HeatmapPanel BuildYearPanel(TagDailyTotals tag, string[] ramp,
-        int year, DateTime firstCell, int weekCount, SolidColorPaint labels)
+        int year, DateTime firstCell, int weekCount)
     {
         double[] thresholds = HeatmapAggregator.BucketThresholds(tag.Days.Values);
 
@@ -265,8 +269,8 @@ public partial class StatisticsViewModel : ViewModelBase
         {
             Caption = "Year Overview",
             Series = [series],
-            XAxes = [BuildMonthAxis(firstCell, weekCount, year, labels)],
-            YAxes = [BuildWeekdayAxis(labels)],
+            XAxes = [BuildMonthAxis(firstCell, weekCount, year)],
+            YAxes = [BuildWeekdayAxis()],
             DrawMargin = new Margin((float)WeekdayGutter, (float)TopGutter, (float)ChartEdge, (float)ChartEdge),
             ChartWidth = WeekdayGutter + (weekCount * CellSize) + ChartEdge,
             ChartHeight = TopGutter + (HeatmapAggregator.WeekdayCount * CellSize) + ChartEdge,
@@ -288,7 +292,7 @@ public partial class StatisticsViewModel : ViewModelBase
     // The quartiles are computed over these 168 cells rather than over the year's days, because a
     // cell here is one hour summed over every week of the year and is nowhere near the same
     // magnitude as a single day. That is exactly why this panel carries its own scale strip.
-    private HeatmapPanel BuildActiveHoursPanel(TagWeekHourTotals tag, string[] ramp, SolidColorPaint labels)
+    private HeatmapPanel BuildActiveHoursPanel(TagWeekHourTotals tag, string[] ramp)
     {
         var cells = tag.Cells;
         double[] thresholds = HeatmapAggregator.BucketThresholds(cells.Cast<double>());
@@ -334,8 +338,8 @@ public partial class StatisticsViewModel : ViewModelBase
         {
             Caption = "Active Hours",
             Series = [series],
-            XAxes = [BuildHourAxis(labels)],
-            YAxes = [BuildFullWeekdayAxis(labels)],
+            XAxes = [BuildHourAxis()],
+            YAxes = [BuildFullWeekdayAxis()],
             DrawMargin = new Margin((float)WeekdayGutter, (float)TopGutter, (float)ChartEdge, (float)ChartEdge),
             ChartWidth = WeekdayGutter + (HeatmapAggregator.HourCount * CellSize) + ChartEdge,
             ChartHeight = TopGutter + (HeatmapAggregator.WeekdayCount * CellSize) + ChartEdge,
@@ -371,7 +375,7 @@ public partial class StatisticsViewModel : ViewModelBase
     // -0.5 also sidesteps the quirk the timeline documents in MainPage: assigning an axis's own
     // default (0) raises no change notification, and the axis then auto-scales instead.
 
-    private static Axis BuildMonthAxis(DateTime firstCell, int weekCount, int year, SolidColorPaint labels)
+    private static Axis BuildMonthAxis(DateTime firstCell, int weekCount, int year)
     {
         // A label on the first week column each month reaches into. A column is named after the
         // month its Sunday falls in, so a week split across two months labels the one it mostly
@@ -391,7 +395,7 @@ public partial class StatisticsViewModel : ViewModelBase
 
         return new Axis
         {
-            LabelsPaint = labels,
+            LabelsPaint = LabelPaint(),
             // End is the top of a cartesian chart's X axis, where GitHub puts the months
             Position = AxisPosition.End,
             Labeler = week => firstCell.AddDays((week * 7) + 6).ToString("MMM"),
@@ -403,9 +407,9 @@ public partial class StatisticsViewModel : ViewModelBase
         };
     }
 
-    private static Axis BuildWeekdayAxis(SolidColorPaint labels) => new Axis
+    private static Axis BuildWeekdayAxis() => new Axis
     {
-        LabelsPaint = labels,
+        LabelsPaint = LabelPaint(),
         // Monday belongs on top, and GitHub labels only three of the seven rows
         IsInverted = true,
         Labeler = weekday => (int)Math.Round(weekday) switch
@@ -423,9 +427,9 @@ public partial class StatisticsViewModel : ViewModelBase
     };
 
     // Every third hour, which is as dense as 14px cells carry at this text size
-    private static Axis BuildHourAxis(SolidColorPaint labels) => new Axis
+    private static Axis BuildHourAxis() => new Axis
     {
-        LabelsPaint = labels,
+        LabelsPaint = LabelPaint(),
         // End puts them along the top, where the year grid's months are
         Position = AxisPosition.End,
         Labeler = hour => $"{(int)Math.Round(hour):00}",
@@ -437,7 +441,9 @@ public partial class StatisticsViewModel : ViewModelBase
     };
 
     // Axis text in the theme's secondary text colour; LiveCharts draws its own text and cannot
-    // follow the theme resources the rest of the page uses.
+    // follow the theme resources the rest of the page uses. A NEW paint per axis on purpose:
+    // each chart disposes its paints when it unloads, so one shared between charts would be
+    // disposed under the other.
     private static SolidColorPaint LabelPaint() =>
         new(Application.Current?.ActualThemeVariant == ThemeVariant.Dark
             ? new SKColor(0xC5, 0xC5, 0xC5)
@@ -448,9 +454,9 @@ public partial class StatisticsViewModel : ViewModelBase
     // Monday on top like the year grid, but every row labelled. The year grid can get away with
     // three of seven because its rows are not its subject; here the weekday IS the subject, and
     // initials would leave two ambiguous pairs (T/T and S/S).
-    private static Axis BuildFullWeekdayAxis(SolidColorPaint labels) => new Axis
+    private static Axis BuildFullWeekdayAxis() => new Axis
     {
-        LabelsPaint = labels,
+        LabelsPaint = LabelPaint(),
         IsInverted = true,
         Labeler = weekday => WeekdayNames[Math.Clamp((int)Math.Round(weekday), 0, WeekdayNames.Length - 1)],
         CustomSeparators = [0, 1, 2, 3, 4, 5, 6],

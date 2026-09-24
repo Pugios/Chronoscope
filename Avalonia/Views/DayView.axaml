@@ -58,6 +58,7 @@
       <Grid ColumnDefinitions="Auto,*" ColumnSpacing="28">
         <Grid x:Name="PieHost" Width="420" Height="420" VerticalAlignment="Center">
           <lvc:PieChart Series="{Binding PieSeries}"
+                        controls:ChartPaints.OwnTooltip="True"
                         InitialRotation="-90"
                         LegendPosition="Hidden"
                         TooltipPosition="Center" />
