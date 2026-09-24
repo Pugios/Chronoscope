@@ -14,6 +14,21 @@ TimeViewer is a Windows desktop app built with .NET MAUI that solves this. It pu
 
 The result is displayed as an interactive nested pie chart you can navigate day by day to analyse your own behaviour.
 
+### Avalonia build
+
+[`Avalonia/`](./Avalonia/) is a port of the MAUI app to [Avalonia](https://avaloniaui.net/) with
+[FluentAvalonia](https://github.com/amwx/FluentAvalonia)'s Fluent design: a navigation pane (Day,
+Statistics, Settings, pin-on-top), card layout, light and dark theme following the system, and the
+system accent colour. Features and data are the same as the MAUI app - it reads the same
+`tags.csv`, `explorer-processes.csv` and `settings.json`, so an existing setup carries straight over.
+It no longer needs a Syncfusion licence.
+
+```
+cd Avalonia
+dotnet run                                            # develop
+dotnet publish -c Release -r win-x64 --self-contained # then build TimeViewer.iss for the installer
+```
+
 For the larger picture, [Analysis](./Analysis/) provides several Python scripts to identify longer-term trends. My goal is to eventually surface these statistics in the app as well.
 
 ---

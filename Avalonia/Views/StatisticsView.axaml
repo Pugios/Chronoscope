@@ -1,0 +1,145 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TimeViewer.ViewModels"
+             xmlns:local="using:TimeViewer"
+             xmlns:conv="using:TimeViewer.Converters"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="TimeViewer.Views.StatisticsView"
+             x:DataType="vm:StatisticsViewModel">
+
+  <Grid RowDefinitions="Auto,*" RowSpacing="16" Margin="28,20,28,0">
+
+    <!-- Header: the year on screen, and the controls that move it -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <StackPanel VerticalAlignment="Center">
+        <TextBlock Classes="PageTitle" Text="Statistics" />
+        <TextBlock Classes="Secondary" Text="Per tag: which days, and which hours of the week" />
+      </StackPanel>
+
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+        <ui:FAProgressRing IsActive="{Binding IsBusy}" IsVisible="{Binding IsBusy}"
+                           Width="22" Height="22" Margin="0,0,10,0" />
+        <Button Classes="Icon" Command="{Binding PrevYearCommand}" ToolTip.Tip="Previous year">
+          <ui:FASymbolIcon Symbol="ChevronLeft" />
+        </Button>
+        <TextBlock Text="{Binding DisplayYear}" FontSize="18" FontWeight="SemiBold"
+                   VerticalAlignment="Center" Margin="10,0" />
+        <Button Classes="Icon" Command="{Binding NextYearCommand}" ToolTip.Tip="Next year">
+          <ui:FASymbolIcon Symbol="ChevronRight" />
+        </Button>
+        <Button Classes="Icon" Margin="8,0,0,0" Command="{Binding RefreshCommand}"
+                ToolTip.Tip="Reload from ManicTime">
+          <ui:FASymbolIcon Symbol="Refresh" />
+        </Button>
+        <!-- The same export every refresh already performs, on demand and loud about
+             what happened. See Settings for the vault folder it writes to. -->
+        <Button Classes="accent" Height="34" Margin="4,0,0,0" Command="{Binding ExportCommand}"
+                ToolTip.Tip="Write the heatmap data into your Obsidian vault">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <ui:FASymbolIcon Symbol="Share" FontSize="16" />
+            <TextBlock Text="Export to Vault" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <StackPanel Grid.Row="1" Spacing="8" IsVisible="{Binding IsEmpty}"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+      <ui:FASymbolIcon Symbol="CalendarEmpty" FontSize="40"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+      <TextBlock Text="{Binding EmptyMessage}" Classes="Secondary" />
+    </StackPanel>
+
+    <!-- Both orientations: a 53 week grid plus the hour grid beside it is wider than the
+         compact window the app is usually pinned at, so the charts scroll rather than squash -->
+    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+      <ItemsControl ItemsSource="{Binding TagStats}" Margin="0,0,0,24">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Spacing="12" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="local:TagStatistics">
+            <Border Classes="Card" HorizontalAlignment="Left" Padding="16,14">
+              <StackPanel Spacing="10">
+
+                <!-- Title row, indented to line up with the grids' first column -->
+                <StackPanel Orientation="Horizontal" Spacing="10" Margin="38,0,0,0">
+                  <Ellipse Width="12" Height="12" VerticalAlignment="Center"
+                           Fill="{Binding TagColor, Converter={x:Static conv:ColorConverters.ToBrush}}" />
+                  <TextBlock Text="{Binding Tag}" FontSize="16" FontWeight="SemiBold"
+                             VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding TotalLabel}" Classes="Secondary"
+                             VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- This tag's grids, drawn left to right: Year Overview, then Active Hours -->
+                <ItemsControl ItemsSource="{Binding Panels}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="28" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="local:HeatmapPanel">
+                      <StackPanel Spacing="4" HorizontalAlignment="Left">
+
+                        <!-- Caption and scale strip are both indented by the weekday gutter, so
+                             each one starts exactly at its own grid's first column -->
+                        <TextBlock Text="{Binding Caption}" Classes="Caption" Margin="38,0,0,0" />
+
+                        <!-- Series, axes and DrawMargin all arrive built from the view model: the
+                             labelers close over the period the grid covers, and pinning DrawMargin
+                             keeps the plot area exactly the grid so the cells stay square.
+                             Animating ~540 cells per tag would only stutter. -->
+                        <lvc:CartesianChart Series="{Binding Series}"
+                                            XAxes="{Binding XAxes}"
+                                            YAxes="{Binding YAxes}"
+                                            DrawMargin="{Binding DrawMargin}"
+                                            Width="{Binding ChartWidth}"
+                                            Height="{Binding ChartHeight}"
+                                            HorizontalAlignment="Left"
+                                            ZoomMode="None"
+                                            LegendPosition="Hidden"
+                                            TooltipPosition="Top"
+                                            FindingStrategy="ExactMatch"
+                                            AnimationsSpeed="0:0:0" />
+
+                        <!-- Drawn from the ramp itself, so it can never drift from the shades in
+                             the grid above it. Each swatch carries the span of tracked time it
+                             stands for: the quartiles are per tag, per year AND per grid. -->
+                        <ItemsControl ItemsSource="{Binding ScaleSteps}" Margin="38,2,0,0">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Horizontal" Spacing="6" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:HeatmapScaleStep">
+                              <StackPanel Spacing="2" MinWidth="30">
+                                <Border Width="12" Height="12" CornerRadius="3"
+                                        HorizontalAlignment="Center"
+                                        Background="{Binding Color, Converter={x:Static conv:ColorConverters.ToBrush}}" />
+                                <TextBlock Text="{Binding Label}" FontSize="10"
+                                           Classes="Secondary" HorizontalAlignment="Center" />
+                              </StackPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

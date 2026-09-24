@@ -17,10 +17,18 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = new MainViewModel(),
-            };
+            // The composition root: the singletons MauiProgram registered, built by hand
+            var settingsService = new SettingsService();
+            var dataService = new DataService(settingsService);
+            var vaultExportService = new VaultExportService(settingsService);
+            var dialogs = new DialogService();
+
+            var shell = new MainWindowViewModel(settingsService, dataService, vaultExportService, dialogs);
+            var window = new MainWindow { DataContext = shell };
+            dialogs.Attach(window);
+
+            desktop.MainWindow = window;
+            window.Opened += async (_, _) => await shell.StartAsync();
         }
 
         base.OnFrameworkInitializationCompleted();

@@ -3,16 +3,65 @@
              x:Class="TimeViewer.App"
              xmlns:local="using:TimeViewer"
              xmlns:sty="using:FluentAvalonia.Styling"
+             Name="TimeViewer"
              RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+  <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
-    <Application.DataTemplates>
-        <local:ViewLocator />
-    </Application.DataTemplates>
+  <Application.DataTemplates>
+    <local:ViewLocator />
+  </Application.DataTemplates>
 
-    <Application.Styles>
-      <sty:FluentAvaloniaTheme 
-        PreferSystemTheme="True"
-        PreferUserAccentColor="True"/>
-    </Application.Styles>
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <!-- The empty stretch of the day timeline, between activities -->
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="TimelineTrackBrush" Color="#E6E6E6" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="TimelineTrackBrush" Color="#141414" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <sty:FluentAvaloniaTheme PreferSystemTheme="True"
+                             PreferUserAccentColor="True" />
+
+    <!-- A Fluent card: the surface every page section sits on -->
+    <Style Selector="Border.Card">
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <Style Selector="TextBlock.PageTitle">
+      <Setter Property="FontSize" Value="28" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.SectionTitle">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="2,0,0,8" />
+    </Style>
+    <Style Selector="TextBlock.Secondary">
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.Caption">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!-- Square, icon-only buttons used for toolbars -->
+    <Style Selector="Button.Icon, ToggleButton.Icon">
+      <Setter Property="Width" Value="36" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+  </Application.Styles>
 </Application>

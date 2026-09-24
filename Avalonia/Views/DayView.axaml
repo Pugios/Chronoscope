@@ -1,0 +1,155 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TimeViewer.ViewModels"
+             xmlns:local="using:TimeViewer"
+             xmlns:controls="using:TimeViewer.Controls"
+             xmlns:conv="using:TimeViewer.Converters"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="TimeViewer.Views.DayView"
+             x:DataType="vm:DayViewModel">
+
+  <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16" Margin="28,20,28,24">
+
+    <!-- Header: the day on screen, and the controls that move it -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="0" VerticalAlignment="Center">
+        <TextBlock Classes="PageTitle" Text="{Binding DisplayWeekday}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Classes="Secondary" Text="{Binding DisplayDay}" />
+          <Border IsVisible="{Binding IsToday}"
+                  Background="{DynamicResource AccentFillColorDefaultBrush}"
+                  CornerRadius="8" Padding="7,1" VerticalAlignment="Center">
+            <TextBlock Text="Today · last 24h" FontSize="11"
+                       Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+          </Border>
+        </StackPanel>
+      </StackPanel>
+
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+        <ui:FAProgressRing IsActive="{Binding IsBusy}" IsVisible="{Binding IsBusy}"
+                           Width="22" Height="22" Margin="0,0,10,0" />
+        <Button Classes="Icon" Command="{Binding PrevWeekCommand}" ToolTip.Tip="Back one week">
+          <ui:FASymbolIcon Symbol="Previous" />
+        </Button>
+        <Button Classes="Icon" Command="{Binding PrevDayCommand}" ToolTip.Tip="Previous day">
+          <ui:FASymbolIcon Symbol="ChevronLeft" />
+        </Button>
+        <Button Content="Today" Height="34" Padding="14,0" Command="{Binding TodayCommand}"
+                VerticalContentAlignment="Center" ToolTip.Tip="Jump to today" />
+        <Button Classes="Icon" Command="{Binding NextDayCommand}" ToolTip.Tip="Next day">
+          <ui:FASymbolIcon Symbol="ChevronRight" />
+        </Button>
+        <Button Classes="Icon" Command="{Binding NextWeekCommand}" ToolTip.Tip="Forward one week">
+          <ui:FASymbolIcon Symbol="Next" />
+        </Button>
+        <Button Classes="Icon accent" Margin="8,0,0,0" Command="{Binding RefreshCommand}"
+                ToolTip.Tip="Reload from ManicTime">
+          <ui:FASymbolIcon Symbol="Refresh" />
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <!-- The pie and its legend -->
+    <Border Grid.Row="1" Classes="Card" x:Name="PieCard" Padding="20">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="28">
+        <Grid x:Name="PieHost" Width="420" Height="420" VerticalAlignment="Center">
+          <lvc:PieChart Series="{Binding PieSeries}"
+                        InitialRotation="-90"
+                        LegendPosition="Hidden"
+                        TooltipPosition="Center" />
+          <!-- The hole in the middle: how much of the day was tracked at all -->
+          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                      IsHitTestVisible="False" IsVisible="{Binding HasData}">
+            <TextBlock Text="{Binding TrackedTotal}" FontSize="22" FontWeight="SemiBold"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="tracked" Classes="Caption" HorizontalAlignment="Center" />
+          </StackPanel>
+          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8"
+                      IsVisible="{Binding !HasData}">
+            <ui:FASymbolIcon Symbol="CalendarEmpty" FontSize="40"
+                             Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            <TextBlock Text="Nothing tracked on this day" Classes="Secondary"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+        </Grid>
+
+        <!-- Columns fill top to bottom and grow to the right, capped at the pie's height;
+             whatever does not fit stays reachable through the horizontal scrollbar -->
+        <ScrollViewer Grid.Column="1"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled"
+                      VerticalAlignment="Center">
+          <ItemsControl x:Name="Legend" ItemsSource="{Binding LegendItems}" Height="420">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Vertical" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="local:LegendItem">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8"
+                      Width="236" Height="26" Margin="0,0,20,0">
+                  <Ellipse Width="10" Height="10" Margin="{Binding Indent}"
+                           VerticalAlignment="Center"
+                           Fill="{Binding Color, Converter={x:Static conv:ColorConverters.ToBrush}}" />
+                  <TextBlock Grid.Column="1" Text="{Binding Name}"
+                             TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                             ToolTip.Tip="{Binding Name}"
+                             Classes.Tag="{Binding IsTag}"
+                             Classes.Process="{Binding !IsTag}" />
+                  <TextBlock Grid.Column="2" Text="{Binding Duration}"
+                             FontFeatures="+tnum" VerticalAlignment="Center"
+                             Classes.Tag="{Binding IsTag}"
+                             Classes.Process="{Binding !IsTag}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+            <ItemsControl.Styles>
+              <Style Selector="TextBlock.Tag">
+                <Setter Property="FontWeight" Value="SemiBold" />
+              </Style>
+              <Style Selector="TextBlock.Process">
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+              </Style>
+            </ItemsControl.Styles>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <!-- The 24h timeline, with its own hover card -->
+    <Border Grid.Row="2" Classes="Card" Padding="20,14,20,10">
+      <StackPanel Spacing="10">
+        <TextBlock Classes="Caption" Text="Timeline" />
+        <Panel>
+          <controls:TimelineBar x:Name="Timeline"
+                                Slices="{Binding TimelineSlices}"
+                                WindowStart="{Binding TimelineWindowStart}"
+                                TrackBrush="{DynamicResource TimelineTrackBrush}"
+                                LabelBrush="{DynamicResource TextFillColorSecondaryBrush}"
+                                HighlightBrush="{DynamicResource TextFillColorPrimaryBrush}" />
+          <Canvas IsHitTestVisible="False" ClipToBounds="False">
+            <Border x:Name="TimelineTooltip"
+                    IsVisible="False"
+                    Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                    BorderBrush="{DynamicResource SurfaceStrokeColorFlyoutBrush}"
+                    BorderThickness="1" CornerRadius="6" Padding="10,6"
+                    BoxShadow="0 4 12 0 #40000000">
+              <StackPanel Spacing="1">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Ellipse x:Name="TooltipDot" Width="8" Height="8" VerticalAlignment="Center" />
+                  <TextBlock x:Name="TooltipName" FontWeight="SemiBold" FontSize="12" />
+                </StackPanel>
+                <TextBlock x:Name="TooltipRange" FontSize="12" Classes="Secondary" />
+              </StackPanel>
+            </Border>
+          </Canvas>
+        </Panel>
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

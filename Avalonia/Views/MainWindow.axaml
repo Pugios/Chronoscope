@@ -1,31 +1,49 @@
-<Window xmlns="https://github.com/avaloniaui"
-				xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-				xmlns:vm="using:TimeViewer.ViewModels"
-				xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-				xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-				mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-				x:Class="TimeViewer.Views.MainWindow"
-				x:DataType="vm:MainViewModel"
-				Icon="/Assets/avalonia-logo.ico"
-				Title="TimeViewer">
+<wnd:FAAppWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:vm="using:TimeViewer.ViewModels"
+                 xmlns:ui="using:FluentAvalonia.UI.Controls"
+                 xmlns:wnd="using:FluentAvalonia.UI.Windowing"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
+                 x:Class="TimeViewer.Views.MainWindow"
+                 x:DataType="vm:MainWindowViewModel"
+                 Icon="/Assets/appicon.ico"
+                 Title="TimeViewer"
+                 Width="1320" Height="860"
+                 MinWidth="640" MinHeight="480"
+                 WindowStartupLocation="CenterScreen"
+                 Topmost="{Binding IsPinned}">
 
-  <Design.DataContext>
-    <!-- This only sets the DataContext for the previewer in an IDE,
-						 to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-    <vm:MainViewModel />
-  </Design.DataContext>
+  <ui:FANavigationView x:Name="NavView"
+                       PaneDisplayMode="LeftCompact"
+                       OpenPaneLength="220"
+                       IsSettingsVisible="True"
+                       IsBackButtonVisible="True"
+                       IsBackEnabled="{Binding CanGoBack}"
+                       ItemInvoked="OnItemInvoked"
+                       BackRequested="OnBackRequested">
+    <ui:FANavigationView.MenuItems>
+      <ui:FANavigationViewItem x:Name="DayItem" Content="Day" Tag="Day" IconSource="Clock" />
+      <ui:FANavigationViewItem x:Name="StatisticsItem" Content="Statistics" Tag="Statistics" IconSource="Calendar" />
+    </ui:FANavigationView.MenuItems>
 
-  <StackPanel HorizontalAlignment="Center"
-                VerticalAlignment="Center" >
-    <TextBox Text="{Binding Greeting}"/>
+    <!-- Keep the window above everything else, e.g. docked beside work -->
+    <ui:FANavigationView.PaneFooter>
+      <ToggleButton Classes="Icon"
+                    Margin="4,0,4,4"
+                    Width="40"
+                    HorizontalAlignment="Left"
+                    IsChecked="{Binding IsPinned}"
+                    ToolTip.Tip="Keep on top">
+        <ui:FASymbolIcon Symbol="Pin" />
+      </ToggleButton>
+    </ui:FANavigationView.PaneFooter>
 
-    <Button Command="{Binding IncrementCommand}">
-      <TextBlock Text="{Binding ClickCount, StringFormat='Clicked me {0} times'}" />
-    </Button>
-
-    <Button Command="{Binding IncrementCommand}">
-      <TextBlock Text="{Binding ButtonText}" />
-    </Button>
-  </StackPanel>
-
-</Window>
+    <TransitioningContentControl Content="{Binding CurrentPage}">
+      <TransitioningContentControl.PageTransition>
+        <CrossFade Duration="0:0:0.15" />
+      </TransitioningContentControl.PageTransition>
+    </TransitioningContentControl>
+  </ui:FANavigationView>
+</wnd:FAAppWindow>
