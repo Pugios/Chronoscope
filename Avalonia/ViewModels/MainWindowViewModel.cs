@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace TimeViewer.ViewModels;
 
 // The top level pages the navigation pane switches between
-public enum AppSection { Day, Statistics, Settings }
+public enum AppSection { Day, Statistics, Tags, Settings }
 
 // Shell of the app: which page is on screen, the back stack beneath it, and the window pin.
 // Replaces MAUI's Shell routing. The pane jumps between sections (clearing the stack, as a
@@ -56,7 +56,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ViewModelBase page = section switch
         {
             AppSection.Statistics => new StatisticsViewModel(_settingsService, _dataService, _vaultExportService, _dialogs),
-            AppSection.Settings => new SettingsViewModel(_settingsService, _dataService, _dialogs, this),
+            AppSection.Tags => new TagsViewModel(_settingsService, _dataService, _dialogs, this),
+            AppSection.Settings => new SettingsViewModel(_settingsService, _dialogs, this),
             _ => _day
         };
 

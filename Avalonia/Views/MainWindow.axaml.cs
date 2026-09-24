@@ -29,6 +29,7 @@ public partial class MainWindow : FAAppWindow
             : (e.InvokedItemContainer?.Tag as string) switch
             {
                 "Statistics" => AppSection.Statistics,
+                "Tags" => AppSection.Tags,
                 _ => AppSection.Day
             };
 
@@ -49,6 +50,7 @@ public partial class MainWindow : FAAppWindow
         NavView.SelectedItem = ViewModel.Section switch
         {
             AppSection.Statistics => StatisticsItem,
+            AppSection.Tags => TagsItem,
             AppSection.Settings => NavView.SettingsItem,
             _ => DayItem
         };

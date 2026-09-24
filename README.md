@@ -18,7 +18,7 @@ The result is displayed as an interactive nested pie chart you can navigate day 
 
 [`Avalonia/`](./Avalonia/) is a port of the MAUI app to [Avalonia](https://avaloniaui.net/) with
 [FluentAvalonia](https://github.com/amwx/FluentAvalonia)'s Fluent design: a navigation pane (Day,
-Statistics, Settings, pin-on-top), card layout, light and dark theme following the system, and the
+Statistics, Tags, Settings, pin-on-top), card layout, light and dark theme following the system, and the
 system accent colour. Features and data are the same as the MAUI app - it reads the same
 `tags.csv`, `explorer-processes.csv` and `settings.json`, so an existing setup carries straight over.
 It no longer needs a Syncfusion licence.

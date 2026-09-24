@@ -15,7 +15,7 @@
     <!-- Header. The rules are a working copy until Confirm. -->
     <Grid ColumnDefinitions="*,Auto">
       <StackPanel VerticalAlignment="Center">
-        <TextBlock Classes="Caption" Text="Settings  ›  Subprocesses" />
+        <TextBlock Classes="Caption" Text="Tags  ›  Subprocesses" />
         <TextBlock Classes="PageTitle" Text="{Binding ProcessName}" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">

@@ -26,6 +26,7 @@
     <ui:FANavigationView.MenuItems>
       <ui:FANavigationViewItem x:Name="DayItem" Content="Day" Tag="Day" IconSource="Clock" />
       <ui:FANavigationViewItem x:Name="StatisticsItem" Content="Statistics" Tag="Statistics" IconSource="Calendar" />
+      <ui:FANavigationViewItem x:Name="TagsItem" Content="Tags" Tag="Tags" IconSource="Tag" />
     </ui:FANavigationView.MenuItems>
 
     <!-- Keep the window above everything else, e.g. docked beside work -->
