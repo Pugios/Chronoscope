@@ -41,10 +41,8 @@
       </ToggleButton>
     </ui:FANavigationView.PaneFooter>
 
-    <TransitioningContentControl Content="{Binding CurrentPage}">
-      <TransitioningContentControl.PageTransition>
-        <CrossFade Duration="0:0:0.15" />
-      </TransitioningContentControl.PageTransition>
-    </TransitioningContentControl>
+    <!-- The pages. Filled from code (ShowPage): the Day and Statistics views are kept here once
+         built and only hidden while another page is shown, the others come and go per visit. -->
+    <Panel x:Name="PageHost" />
   </ui:FANavigationView>
 </wnd:FAAppWindow>

@@ -74,7 +74,12 @@ public class SettingsService
             }
 
             var json = await File.ReadAllTextAsync(_filePath);
+            var old = _settings.TagColors;
             _settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            // Reloaded on every visit to the day view; only an actual difference counts as a change
+            if (old.Count != _settings.TagColors.Count
+                || old.Any(kv => !_settings.TagColors.TryGetValue(kv.Key, out var c) || c != kv.Value))
+                TagColorsVersion++;
         }
         catch (Exception ex)
         {
@@ -222,6 +227,9 @@ public class SettingsService
     // Tag Colors
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+    // Bumped on every colour change, so a kept page can tell whether what it drew is still current
+    public int TagColorsVersion { get; private set; }
+
     // Expose all Tag Colors as ReadOnly
     public IReadOnlyDictionary<string, string> TagColors => _settings.TagColors;
 
@@ -234,6 +242,7 @@ public class SettingsService
         // Auto-assign a random color and save it
         color = $"#{Random.Shared.Next(256):X2}{Random.Shared.Next(256):X2}{Random.Shared.Next(256):X2}";
         _settings.TagColors[tag] = color;
+        TagColorsVersion++;
         RequestSave();
         return color;
     }
@@ -274,13 +283,15 @@ public class SettingsService
     // Set a new Color
     public void SetTagColor(string tag, string color)
     {
+        if (_settings.TagColors.TryGetValue(tag, out var old) && old == color) return;
         _settings.TagColors[tag] = color;
+        TagColorsVersion++;
         RequestSave();
     }
 
     public void DeleteTagColor(string tag)
     {
-        _settings.TagColors.Remove(tag);
+        if (_settings.TagColors.Remove(tag)) TagColorsVersion++;
         RequestSave();
     }
 }

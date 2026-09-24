@@ -19,7 +19,7 @@ namespace TimeViewer.ViewModels;
 
 // A heatmap per tag for one year: the GitHub-style Year Overview and the weekday x hour Active
 // Hours grid. Ported from the MAUI StatisticsPage.
-public partial class StatisticsViewModel : ViewModelBase
+public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
 {
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Parameters
@@ -54,15 +54,14 @@ public partial class StatisticsViewModel : ViewModelBase
 
     // Same rule as the day view: the charts dispose their series' and axes' paints on unload, so
     // a later visit (Back / Forward) must get fresh ones rather than these. RefreshAsync rebuilds.
-    public override void OnNavigatedFrom()
-    {
-        _generation++; // stops a card fill still in progress
-        TagStats = [];
-        HiddenTags = [];
-    }
+    // The view is kept (IKeepAlive): the cards and their charts stay loaded while another page is
+    // shown, so there is nothing to tear down - and nothing to rebuild on the way back.
+    public override void OnNavigatedFrom() { }
 
     [ObservableProperty]
     public partial bool IsBusy { get; private set; }
+
+    private (IReadOnlyList<AppsTagsTable>? Apps, int Year, int Colors) _shown;
 
     private bool _isRefreshing;
     private async Task RefreshAsync(bool forceReload = false)
@@ -75,7 +74,15 @@ public partial class StatisticsViewModel : ViewModelBase
             // MainPage has already primed the shared DataService, so the default path costs no
             // ManicTime export - only the refresh button pays for one.
             var apps = await _dataService.GetMergedDataAsync(forceReload);
+
+            // Same data, year and colours as what is on screen: keep it. Opening the page then
+            // costs nothing, which is the point of keeping it alive.
+            var shown = (apps, _year, _settingsService.TagColorsVersion);
+            if (!forceReload && shown == _shown)
+                return;
+
             await LoadTagStatisticsAsync(apps, _year);
+            _shown = (apps, _year, _settingsService.TagColorsVersion); // building may colour new tags
 
             // The chart is the point of this page; a vault that has moved or is on an unplugged
             // drive must not take it down with it. The Export button reports failures out loud.

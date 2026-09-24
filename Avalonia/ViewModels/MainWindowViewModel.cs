@@ -15,10 +15,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly VaultExportService _vaultExportService;
     private readonly DialogService _dialogs;
 
-    // The day view keeps its state (the day on screen) across trips to the other pages, the way
-    // the MAUI Shell's root page did. The others are built fresh on each visit, as MAUI's
-    // transient pages were.
+    // The day view and Statistics keep their state (and, see IKeepAlive, their views) across trips
+    // to the other pages. The others are built fresh on each visit, as MAUI's transient pages were.
     private readonly DayViewModel _day;
+    private readonly StatisticsViewModel _statistics;
 
     public MainWindowViewModel(SettingsService settingsService, DataService dataService,
         VaultExportService vaultExportService, DialogService dialogs)
@@ -28,6 +28,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _vaultExportService = vaultExportService;
         _dialogs = dialogs;
         _day = new DayViewModel(settingsService, dataService, dialogs);
+        _statistics = new StatisticsViewModel(settingsService, dataService, vaultExportService, dialogs);
     }
 
     [ObservableProperty]
@@ -55,7 +56,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         ViewModelBase page = section switch
         {
-            AppSection.Statistics => new StatisticsViewModel(_settingsService, _dataService, _vaultExportService, _dialogs),
+            AppSection.Statistics => _statistics,
             AppSection.Tags => new TagsViewModel(_settingsService, _dataService, _dialogs, this),
             AppSection.Settings => new SettingsViewModel(_settingsService, _dataService, _dialogs, this),
             _ => _day

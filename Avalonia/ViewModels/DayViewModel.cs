@@ -12,7 +12,7 @@ namespace TimeViewer.ViewModels;
 
 // The home page: one day as a nested pie (tags inside, their processes outside), its legend,
 // and the 24h timeline bar beneath. Ported from the MAUI MainPage.
-public partial class DayViewModel : ViewModelBase
+public partial class DayViewModel : ViewModelBase, IKeepAlive
 {
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Parameters
@@ -51,15 +51,9 @@ public partial class DayViewModel : ViewModelBase
         _refreshTimer.Start();
     }
 
-    public override void OnNavigatedFrom()
-    {
-        _refreshTimer.Stop();
-
-        // A chart disposes the paints of the series it drew when it unloads, so series must never
-        // outlive their chart: the next visit builds a new view, and handing it these would draw
-        // with disposed Skia objects. OnNavigatedToAsync always redraws, so nothing is lost.
-        PieSeries = [];
-    }
+    // The view is kept (IKeepAlive), so the pie stays loaded while another page is shown and its
+    // series stay valid; nothing needs clearing here.
+    public override void OnNavigatedFrom() => _refreshTimer.Stop();
 
     private bool _isRefreshing;
     private bool _refreshQueued;
@@ -98,8 +92,18 @@ public partial class DayViewModel : ViewModelBase
                 // Only the first pass weighs staleness; a queued pass is a day change and
                 // redraws whatever that first pass just loaded.
                 maxAge = null;
+
+                // Coming back to this page with nothing changed (same data, day and colours, and
+                // the rolling window not yet a minute older) keeps what is on screen, rather than
+                // rebuilding and re-animating the pie on every visit
+                var drawn = (apps, day, _settingsService.TagColorsVersion);
+                if (!reload && drawn == _drawn && DateTime.Now - _drawnAt < TimeSpan.FromMinutes(1))
+                    continue;
+
                 LoadDayNestedPie(apps, day);
                 LoadDayTimeline(apps, day);
+                _drawn = (apps, day, _settingsService.TagColorsVersion); // drawing may colour new tags
+                _drawnAt = DateTime.Now;
             }
             while (_refreshQueued);
         }
@@ -119,6 +123,9 @@ public partial class DayViewModel : ViewModelBase
             IsBusy = false;
         }
     }
+
+    private (IReadOnlyList<AppsTagsTable>? Apps, DateTime Day, int Colors) _drawn;
+    private DateTime _drawnAt;
 
     private DateTime _currentDay = DateTime.Today;
     private async Task ChangeDayAsync(int deltaDays)

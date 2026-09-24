@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
+using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -24,7 +27,10 @@ public partial class MainWindow : FAAppWindow
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainWindowViewModel vm)
+            {
                 vm.PropertyChanged += OnViewModelPropertyChanged;
+                ShowPage(vm.CurrentPage);
+            }
         };
     }
 
@@ -45,6 +51,55 @@ public partial class MainWindow : FAAppWindow
 
         await ViewModel.NavigateToSectionAsync(section);
     }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Page Host
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // A kept page (IKeepAlive) is built once and stays in the host, hidden while another page is
+    // shown: its charts are never unloaded, so there is nothing to rebuild on the way back and no
+    // chart disposes paints a later one would still use. Any other page is built per visit and
+    // removed when left, so it always starts fresh.
+
+    private readonly Dictionary<ViewModelBase, Control> _keptViews = new();
+    private readonly ViewLocator _viewLocator = new();
+
+    private void ShowPage(ViewModelBase? page)
+    {
+        if (page is null) return;
+
+        if (!_keptViews.TryGetValue(page, out var view))
+        {
+            view = _viewLocator.Build(page) ?? new TextBlock { Text = page.GetType().Name };
+            view.DataContext = page;
+            PageHost.Children.Add(view);
+            if (page is IKeepAlive) _keptViews[page] = view;
+        }
+
+        foreach (var other in PageHost.Children.ToList())
+        {
+            if (other == view) continue;
+            if (_keptViews.ContainsValue(other))
+                other.IsVisible = false;
+            else
+                PageHost.Children.Remove(other);
+        }
+
+        view.IsVisible = true;
+        FadeIn(view);
+    }
+
+    private static readonly Animation PageFadeIn = new()
+    {
+        Duration = TimeSpan.FromMilliseconds(150),
+        Easing = new CubicEaseOut(),
+        Children =
+        {
+            new KeyFrame { Cue = new Cue(0), Setters = { new Setter(OpacityProperty, 0.0) } },
+            new KeyFrame { Cue = new Cue(1), Setters = { new Setter(OpacityProperty, 1.0) } }
+        }
+    };
+
+    private static void FadeIn(Control view) => _ = PageFadeIn.RunAsync(view);
 
     // Moving the window by its title bar.
     //
@@ -118,6 +173,9 @@ public partial class MainWindow : FAAppWindow
     // highlight follows the view model rather than only the clicks
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainWindowViewModel.CurrentPage))
+            ShowPage(ViewModel?.CurrentPage);
+
         if (e.PropertyName != nameof(MainWindowViewModel.Section) || ViewModel is null) return;
 
         NavView.SelectedItem = ViewModel.Section switch
