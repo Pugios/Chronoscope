@@ -24,7 +24,9 @@ public partial class DayView : UserControl
             double size = Math.Clamp(inner, MinPieSize, MaxPieSize);
             PieHost.Width = size;
             PieHost.Height = size;
-            Legend.Height = size - LegendScrollBarRoom;
+            // From the card's real height, not the pie's: on a very short window the pie stops at
+            // its minimum and overflows, and a legend that followed it would be clipped
+            Legend.Height = Math.Max(Math.Min(size, inner) - LegendScrollBarRoom, 26);
         };
 
         Timeline.PointerMoved += OnTimelinePointerMoved;

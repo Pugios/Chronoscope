@@ -78,8 +78,9 @@
           </StackPanel>
         </Grid>
 
-        <!-- Columns fill top to bottom and grow to the right, capped at the pie's height;
-             whatever does not fit stays reachable through the horizontal scrollbar -->
+        <!-- Columns fill top to bottom and grow to the right, capped at the pie's height, and
+             break between tags rather than inside one; whatever does not fit stays reachable
+             through the horizontal scrollbar -->
         <ScrollViewer Grid.Column="1"
                       HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Disabled"
@@ -87,7 +88,7 @@
           <ItemsControl x:Name="Legend" ItemsSource="{Binding LegendItems}" Height="420">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <WrapPanel Orientation="Vertical" />
+                <controls:LegendColumnsPanel />
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
