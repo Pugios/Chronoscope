@@ -27,6 +27,7 @@ public partial class SettingsViewModel : ViewModelBase
     public override Task OnNavigatedToAsync()
     {
         MtcExePath = _settingsService.MtcExePath;
+        RefreshMinutes = _settingsService.RefreshMinutes;
         ObsidianExportPath = _settingsService.ObsidianExportPath;
         ObsidianExportEnabled = _settingsService.ObsidianExportEnabled;
         TagsCsvPath = _settingsService.TagsCsvPath;
@@ -56,6 +57,14 @@ public partial class SettingsViewModel : ViewModelBase
         if (path is not null)
             MtcExePath = path;
     }
+
+    // NumericUpDown binds a decimal?, and goes null while its box is cleared. Save keeps the
+    // stored value then, rather than guessing one.
+    [ObservableProperty]
+    public partial decimal? RefreshMinutes { get; set; }
+
+    public decimal MinRefreshMinutes => SettingsService.MinRefreshMinutes;
+    public decimal MaxRefreshMinutes => SettingsService.MaxRefreshMinutes;
 
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Obsidian Vault Export
@@ -196,6 +205,8 @@ public partial class SettingsViewModel : ViewModelBase
             || ObsidianExportEnabled != _settingsService.ObsidianExportEnabled;
 
         _settingsService.MtcExePath = MtcExePath;
+        if (RefreshMinutes is decimal minutes)
+            _settingsService.RefreshMinutes = (int)minutes;
         _settingsService.ObsidianExportPath = ObsidianExportPath;
         _settingsService.ObsidianExportEnabled = ObsidianExportEnabled;
 

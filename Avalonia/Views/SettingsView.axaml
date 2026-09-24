@@ -41,6 +41,20 @@
             </ui:FASettingsExpander.Footer>
           </ui:FASettingsExpander>
 
+          <!-- Only the day view runs the timer; each refresh also rewrites the vault export -->
+          <ui:FASettingsExpander Header="Refresh interval"
+                                 Description="How often the day view reloads from ManicTime while it is open"
+                                 IconSource="Refresh">
+            <ui:FASettingsExpander.Footer>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <NumericUpDown Value="{Binding RefreshMinutes}" Width="140"
+                               Minimum="{Binding MinRefreshMinutes}" Maximum="{Binding MaxRefreshMinutes}"
+                               Increment="1" FormatString="0" ParsingNumberStyle="Integer" />
+                <TextBlock Text="min" VerticalAlignment="Center" />
+              </StackPanel>
+            </ui:FASettingsExpander.Footer>
+          </ui:FASettingsExpander>
+
         </StackPanel>
 
         <!-- Tagging files. settings.json itself stays in the app data folder: it is where these

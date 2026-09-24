@@ -17,7 +17,6 @@ public partial class DayViewModel : ViewModelBase, IKeepAlive
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Parameters
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    const int RefreshTime = 5; // in minutes
     const double GapAbsorbSeconds = 60; // timeline: same-process segments closer than this merge (sub-pixel anyway)
 
     private readonly SettingsService _settingsService;
@@ -31,7 +30,8 @@ public partial class DayViewModel : ViewModelBase, IKeepAlive
         _dataService = dataService;
         _dialogs = dialogs;
 
-        _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(RefreshTime) };
+        // The interval is set on every visit, from Settings: it may have changed while away
+        _refreshTimer = new DispatcherTimer();
         _refreshTimer.Tick += async (_, _) => await RefreshAsync(forceReload: true);
     }
 
@@ -47,7 +47,9 @@ public partial class DayViewModel : ViewModelBase, IKeepAlive
         // Settings or Statistics used to relaunch mtc.exe twice and re-parse the entire export for
         // data that was usually seconds old. Tag and rule edits do not rely on this: both mutators
         // invalidate the cache, so the next call reloads regardless of age.
-        await RefreshAsync(maxAge: TimeSpan.FromMinutes(RefreshTime));
+        TimeSpan interval = _settingsService.RefreshInterval;
+        await RefreshAsync(maxAge: interval);
+        _refreshTimer.Interval = interval;
         _refreshTimer.Start();
     }
 

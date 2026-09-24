@@ -135,6 +135,27 @@ public class SettingsService
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Refresh Interval
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Every refresh relaunches mtc.exe twice and takes a few seconds, so a minute is the floor.
+    // Clamped on the way out as well as in: a hand-edited 0 in settings.json would otherwise give
+    // the DispatcherTimer a zero interval and have it fire back to back.
+    public const int MinRefreshMinutes = 1;
+    public const int MaxRefreshMinutes = 24 * 60;
+
+    public int RefreshMinutes
+    {
+        get => Math.Clamp(_settings.RefreshMinutes, MinRefreshMinutes, MaxRefreshMinutes);
+        set
+        {
+            _settings.RefreshMinutes = Math.Clamp(value, MinRefreshMinutes, MaxRefreshMinutes);
+            RequestSave();
+        }
+    }
+
+    public TimeSpan RefreshInterval => TimeSpan.FromMinutes(RefreshMinutes);
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Obsidian Vault Export
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
