@@ -19,8 +19,13 @@ public class DataService
     // return and the page would sit blank forever.
     private static readonly TimeSpan MtcTimeout = TimeSpan.FromMinutes(2);
 
-    private static readonly string TagsPath = Path.Combine(FileSystem.AppDataDirectory, "tags.csv");
-    private static readonly string ExplorerPath = Path.Combine(FileSystem.AppDataDirectory, "explorer-processes.csv");
+    // Where the two tagging files live: the app data folder unless moved in Settings
+    private string TagsPath => _settingsService.TagsCsvPath;
+    private string ExplorerPath => _settingsService.ExplorerRulesCsvPath;
+
+    // The header each file is created with, and what a file picked in Settings must carry
+    public const string TagsHeader = "Process,Tag";
+    public const string ExplorerHeader = "Process,Tag,Column,MatchType,Pattern,Order";
     private readonly SettingsService _settingsService;
 
     public DataService(SettingsService settingsService)
@@ -133,12 +138,12 @@ public class DataService
     }
 
     // 1. Read Tags
-    private static async Task<List<TagsTable>> GetTagTableAsync()
+    private async Task<List<TagsTable>> GetTagTableAsync()
     {
-        Directory.CreateDirectory(FileSystem.AppDataDirectory);
+        Directory.CreateDirectory(Path.GetDirectoryName(TagsPath)!);
         if (!File.Exists(TagsPath))
         {
-            await File.WriteAllTextAsync(TagsPath, "Process,Tag" + Environment.NewLine);
+            await File.WriteAllTextAsync(TagsPath, TagsHeader + Environment.NewLine);
         }
 
         using var reader = new StreamReader(TagsPath);
@@ -317,6 +322,45 @@ public class DataService
     // file makes both stale. Every mutator routes through here rather than remembering to clear
     // the right pair - the Explorer rules used to skip this, which left the Settings grid and the
     // Statistics page showing rows built with the rules the user had just replaced.
+    // The tagging files were pointed somewhere else: drop everything read from the old ones, so
+    // the next GetMergedDataAsync reads the new ones. _cachedTags and _explorerRules go too -
+    // left in place, the next tag edit would write the OLD file's rows into the new file.
+    public async Task InvalidateAsync()
+    {
+        await _dataGate.WaitAsync();
+        try
+        {
+            _cachedTags = new();
+            _explorerRules = new();
+            InvalidateDerived();
+        }
+        finally
+        {
+            _dataGate.Release();
+        }
+    }
+
+    // Whether a file picked in Settings looks like the one it replaces: its first line must
+    // name every column in the expected header. Anything else would only fail later, on load,
+    // with a CsvHelper message that points nowhere near the cause.
+    public static bool HasHeader(string path, string header)
+    {
+        try
+        {
+            using var reader = new StreamReader(path);
+            var columns = (reader.ReadLine() ?? "")
+                .TrimStart('\uFEFF')
+                .Split(',')
+                .Select(c => c.Trim().Trim('"'))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return header.Split(',').All(columns.Contains);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     private void InvalidateDerived()
     {
         _cachedAppsTags = new();
@@ -364,12 +408,12 @@ public class DataService
     }
 
     // 3. Read Explorer Process Rules
-    private static async Task<List<ExplorerRule>> GetExplorerAsync()
+    private async Task<List<ExplorerRule>> GetExplorerAsync()
     {
-        Directory.CreateDirectory(FileSystem.AppDataDirectory);
+        Directory.CreateDirectory(Path.GetDirectoryName(ExplorerPath)!);
         if (!File.Exists(ExplorerPath))
         {
-            await File.WriteAllTextAsync(ExplorerPath, "Process,Tag,Column,MatchType,Pattern,Order" + Environment.NewLine);
+            await File.WriteAllTextAsync(ExplorerPath, ExplorerHeader + Environment.NewLine);
         }
 
         using var reader = new StreamReader(ExplorerPath);

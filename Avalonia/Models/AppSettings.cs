@@ -11,4 +11,9 @@ public class AppSettings
     // vault - dataviewjs' dv.io.load() resolves vault-relative paths only.
     public string ObsidianExportPath { get; set; } = "";
     public bool ObsidianExportEnabled { get; set; } = false;
+
+    // The tagging files. Empty means the default, beside settings.json in the app data folder;
+    // a path here lets them live elsewhere, e.g. in a synced folder shared between machines.
+    public string TagsCsvPath { get; set; } = "";
+    public string ExplorerRulesCsvPath { get; set; } = "";
 }

@@ -65,6 +65,13 @@ public class DialogService
         return result.Count > 0 ? result[0].TryGetLocalPath() : null;
     }
 
+    // Shows a folder in the system file manager
+    public async Task OpenFolderAsync(string path)
+    {
+        if (_host is null || !Directory.Exists(path)) return;
+        await _host.Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(path));
+    }
+
     public async Task<string?> PickFolderAsync(string title)
     {
         if (_host is null) return null;

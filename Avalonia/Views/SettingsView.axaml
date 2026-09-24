@@ -43,6 +43,42 @@
 
         </StackPanel>
 
+        <!-- Tagging files. settings.json itself stays in the app data folder: it is where these
+             two paths are remembered. -->
+        <StackPanel Spacing="4">
+          <TextBlock Classes="SectionTitle" Text="Tagging files" />
+
+          <ui:FASettingsExpander Header="Process tags (tags.csv)"
+                                 Description="{Binding TagsCsvLocation}"
+                                 IconSource="Tag">
+            <ui:FASettingsExpander.Footer>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Classes="Icon" Command="{Binding OpenTagsFolderCommand}" ToolTip.Tip="Show in folder">
+                  <ui:FASymbolIcon Symbol="OpenFolder" />
+                </Button>
+                <Button Content="Default" Command="{Binding ResetTagsFileCommand}"
+                        ToolTip.Tip="Use the file in the app data folder" />
+                <Button Content="Browse..." Command="{Binding BrowseTagsFileCommand}" />
+              </StackPanel>
+            </ui:FASettingsExpander.Footer>
+          </ui:FASettingsExpander>
+
+          <ui:FASettingsExpander Header="Subprocess rules (explorer-processes.csv)"
+                                 Description="{Binding ExplorerRulesCsvLocation}"
+                                 IconSource="Filter">
+            <ui:FASettingsExpander.Footer>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Classes="Icon" Command="{Binding OpenExplorerRulesFolderCommand}" ToolTip.Tip="Show in folder">
+                  <ui:FASymbolIcon Symbol="OpenFolder" />
+                </Button>
+                <Button Content="Default" Command="{Binding ResetExplorerRulesFileCommand}"
+                        ToolTip.Tip="Use the file in the app data folder" />
+                <Button Content="Browse..." Command="{Binding BrowseExplorerRulesFileCommand}" />
+              </StackPanel>
+            </ui:FASettingsExpander.Footer>
+          </ui:FASettingsExpander>
+        </StackPanel>
+
         <StackPanel Spacing="4">
           <TextBlock Classes="SectionTitle" Text="Export" />
 

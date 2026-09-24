@@ -154,6 +154,46 @@ public class SettingsService
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Tagging Files
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // settings.json itself cannot move - it is where these paths are remembered.
+
+    public static readonly string DefaultTagsCsvPath = Path.Combine(FileSystem.AppDataDirectory, "tags.csv");
+    public static readonly string DefaultExplorerRulesCsvPath = Path.Combine(FileSystem.AppDataDirectory, "explorer-processes.csv");
+
+    public string TagsCsvPath
+    {
+        get => OrDefault(_settings.TagsCsvPath, DefaultTagsCsvPath);
+        set
+        {
+            _settings.TagsCsvPath = StoredPath(value, DefaultTagsCsvPath);
+            RequestSave();
+        }
+    }
+
+    public string ExplorerRulesCsvPath
+    {
+        get => OrDefault(_settings.ExplorerRulesCsvPath, DefaultExplorerRulesCsvPath);
+        set
+        {
+            _settings.ExplorerRulesCsvPath = StoredPath(value, DefaultExplorerRulesCsvPath);
+            RequestSave();
+        }
+    }
+
+    private static string OrDefault(string path, string fallback) =>
+        string.IsNullOrWhiteSpace(path) ? fallback : path;
+
+    // The default is stored as "", so it keeps following the app data folder rather than
+    // being frozen to whatever that resolved to on the day it was saved
+    private static string StoredPath(string path, string fallback) =>
+        string.IsNullOrWhiteSpace(path) || PathsEqual(path, fallback) ? "" : path;
+
+    public static bool PathsEqual(string a, string b) =>
+        string.Equals(Path.GetFullPath(a), Path.GetFullPath(b),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Tag Colors
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

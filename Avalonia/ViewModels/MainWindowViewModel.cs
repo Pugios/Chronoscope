@@ -57,7 +57,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             AppSection.Statistics => new StatisticsViewModel(_settingsService, _dataService, _vaultExportService, _dialogs),
             AppSection.Tags => new TagsViewModel(_settingsService, _dataService, _dialogs, this),
-            AppSection.Settings => new SettingsViewModel(_settingsService, _dialogs, this),
+            AppSection.Settings => new SettingsViewModel(_settingsService, _dataService, _dialogs, this),
             _ => _day
         };
 
