@@ -16,4 +16,9 @@ public class AppSettings
     // a path here lets them live elsewhere, e.g. in a synced folder shared between machines.
     public string TagsCsvPath { get; set; } = "";
     public string ExplorerRulesCsvPath { get; set; } = "";
+
+    // The Statistics page's arrangement: tags in the order the user put them (any tag not listed
+    // follows, biggest first), and the ones set aside at the bottom. Both apply to every year.
+    public List<string> StatisticsTagOrder { get; set; } = new();
+    public List<string> StatisticsHiddenTags { get; set; } = new();
 }

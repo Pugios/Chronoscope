@@ -105,19 +105,19 @@
                                      TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                         <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="2">
-                          <Button Classes="Icon" Theme="{StaticResource TransparentButton}"
+                          <Button Classes="Icon Subtle"
                                   ToolTip.Tip="Move up"
                                   Command="{Binding $parent[ItemsControl].((vm:ExplorerRulesViewModel)DataContext).MoveUpCommand}"
                                   CommandParameter="{Binding}">
                             <ui:FASymbolIcon Symbol="ChevronUp" />
                           </Button>
-                          <Button Classes="Icon" Theme="{StaticResource TransparentButton}"
+                          <Button Classes="Icon Subtle"
                                   ToolTip.Tip="Move down"
                                   Command="{Binding $parent[ItemsControl].((vm:ExplorerRulesViewModel)DataContext).MoveDownCommand}"
                                   CommandParameter="{Binding}">
                             <ui:FASymbolIcon Symbol="ChevronDown" />
                           </Button>
-                          <Button Classes="Icon" Theme="{StaticResource TransparentButton}"
+                          <Button Classes="Icon Subtle"
                                   ToolTip.Tip="Delete rule"
                                   Command="{Binding $parent[ItemsControl].((vm:ExplorerRulesViewModel)DataContext).DeleteRuleCommand}"
                                   CommandParameter="{Binding}">

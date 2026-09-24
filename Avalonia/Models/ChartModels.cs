@@ -69,6 +69,16 @@ public class TagStatistics
     public Color TagColor { get; init; } = Colors.Transparent; // the dot beside the title
     public string TotalLabel { get; init; } = "";              // "412h over 231 days"
     public HeatmapPanel[] Panels { get; init; } = [];          // exactly two, in draw order
+    public bool CanMoveUp { get; init; }                       // not already first / last
+    public bool CanMoveDown { get; init; }
+}
+
+// A tag hidden from the Statistics page, listed at the bottom so it can be brought back
+public class HiddenTag
+{
+    public string Tag { get; init; } = "";
+    public Color TagColor { get; init; } = Colors.Transparent;
+    public string TotalLabel { get; init; } = "";
 }
 
 // One step of a heatmap's legend: the shade, and the span of tracked time it stands for.

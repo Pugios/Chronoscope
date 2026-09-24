@@ -194,6 +194,31 @@ public class SettingsService
             OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Statistics Arrangement
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Written as soon as they change: the Statistics page has no Save button to wait for.
+
+    public IReadOnlyList<string> StatisticsTagOrder
+    {
+        get => _settings.StatisticsTagOrder;
+        set
+        {
+            _settings.StatisticsTagOrder = value.ToList();
+            RequestSave();
+        }
+    }
+
+    public IReadOnlyList<string> StatisticsHiddenTags
+    {
+        get => _settings.StatisticsHiddenTags;
+        set
+        {
+            _settings.StatisticsHiddenTags = value.ToList();
+            RequestSave();
+        }
+    }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Tag Colors
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

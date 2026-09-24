@@ -41,6 +41,20 @@
       <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
     </Style>
 
+    <!-- Borderless buttons for row actions (move, hide, delete): only the hover shows a surface -->
+    <Style Selector="Button.Subtle">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.Subtle:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+    </Style>
+    <Style Selector="Button.Subtle:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+
     <!-- Square, icon-only buttons used for toolbars -->
     <Style Selector="Button.Icon, ToggleButton.Icon">
       <Setter Property="Width" Value="36" />

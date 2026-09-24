@@ -57,7 +57,8 @@
     <!-- Both orientations: a 53 week grid plus the hour grid beside it is wider than the
          compact window the app is usually pinned at, so the charts scroll rather than squash -->
     <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-      <ItemsControl ItemsSource="{Binding TagStats}" Margin="0,0,0,24">
+      <StackPanel Spacing="24" Margin="0,0,0,24">
+      <ItemsControl ItemsSource="{Binding TagStats}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Spacing="12" />
@@ -68,7 +69,9 @@
             <Border Classes="Card" HorizontalAlignment="Left" Padding="16,14">
               <StackPanel Spacing="10">
 
-                <!-- Title row, indented to line up with the grids' first column -->
+                <!-- Title row, indented to line up with the grids' first column; the card's own
+                     arrange buttons sit at its right end -->
+                <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Orientation="Horizontal" Spacing="10" Margin="38,0,0,0">
                   <Ellipse Width="12" Height="12" VerticalAlignment="Center"
                            Fill="{Binding TagColor, Converter={x:Static conv:ColorConverters.ToBrush}}" />
@@ -77,6 +80,27 @@
                   <TextBlock Text="{Binding TotalLabel}" Classes="Secondary"
                              VerticalAlignment="Center" />
                 </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                  <Button Classes="Icon Subtle"
+                          ToolTip.Tip="Move up" IsEnabled="{Binding CanMoveUp}"
+                          Command="{Binding $parent[ItemsControl].((vm:StatisticsViewModel)DataContext).MoveTagUpCommand}"
+                          CommandParameter="{Binding}">
+                    <ui:FASymbolIcon Symbol="ChevronUp" />
+                  </Button>
+                  <Button Classes="Icon Subtle"
+                          ToolTip.Tip="Move down" IsEnabled="{Binding CanMoveDown}"
+                          Command="{Binding $parent[ItemsControl].((vm:StatisticsViewModel)DataContext).MoveTagDownCommand}"
+                          CommandParameter="{Binding}">
+                    <ui:FASymbolIcon Symbol="ChevronDown" />
+                  </Button>
+                  <Button Classes="Icon Subtle"
+                          ToolTip.Tip="Hide this tag"
+                          Command="{Binding $parent[ItemsControl].((vm:StatisticsViewModel)DataContext).HideTagCommand}"
+                          CommandParameter="{Binding}">
+                    <ui:FASymbolIcon Symbol="Remove" />
+                  </Button>
+                </StackPanel>
+                </Grid>
 
                 <!-- This tag's grids, drawn left to right: Year Overview, then Active Hours -->
                 <ItemsControl ItemsSource="{Binding Panels}">
@@ -141,6 +165,41 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
+
+      <!-- Hidden tags, set aside at the very bottom until brought back -->
+      <StackPanel IsVisible="{Binding HasHiddenTags}" HorizontalAlignment="Left">
+        <TextBlock Classes="SectionTitle" Text="Hidden tags" />
+        <ItemsControl ItemsSource="{Binding HiddenTags}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel ItemSpacing="10" LineSpacing="10" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="local:HiddenTag">
+              <Border Classes="Card" Padding="14,8,8,8">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                           Fill="{Binding TagColor, Converter={x:Static conv:ColorConverters.ToBrush}}" />
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Tag}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding TotalLabel}" Classes="Caption" />
+                  </StackPanel>
+                  <Button Margin="6,0,0,0" VerticalAlignment="Center"
+                          Command="{Binding $parent[ItemsControl].((vm:StatisticsViewModel)DataContext).ShowTagCommand}"
+                          CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <ui:FASymbolIcon Symbol="Add" FontSize="14" />
+                      <TextBlock Text="Show" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+      </StackPanel>
     </ScrollViewer>
   </Grid>
 </UserControl>

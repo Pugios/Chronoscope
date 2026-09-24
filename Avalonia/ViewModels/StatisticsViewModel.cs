@@ -53,7 +53,11 @@ public partial class StatisticsViewModel : ViewModelBase
 
     // Same rule as the day view: the charts dispose their series' and axes' paints on unload, so
     // a later visit (Back / Forward) must get fresh ones rather than these. RefreshAsync rebuilds.
-    public override void OnNavigatedFrom() => TagStats = [];
+    public override void OnNavigatedFrom()
+    {
+        TagStats = [];
+        HiddenTags = [];
+    }
 
     [ObservableProperty]
     public partial bool IsBusy { get; private set; }
@@ -152,6 +156,12 @@ public partial class StatisticsViewModel : ViewModelBase
     public partial TagStatistics[] TagStats { get; private set; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasHiddenTags))]
+    public partial HiddenTag[] HiddenTags { get; private set; } = [];
+
+    public bool HasHiddenTags => HiddenTags.Length > 0;
+
+    [ObservableProperty]
     public partial string EmptyMessage { get; private set; } = "";
 
     [ObservableProperty]
@@ -185,18 +195,66 @@ public partial class StatisticsViewModel : ViewModelBase
         var perTagHours = HeatmapAggregator.AggregateTagWeekHours(data, year)
             .ToDictionary(t => t.Tag);
 
+        _built = new BuiltYear(year, firstCell, weekCount, perTag, perTagHours);
+
         if (perTag.Count == 0)
         {
             TagStats = [];
+            HiddenTags = [];
             EmptyMessage = $"No time tracked in {year}.";
             IsEmpty = true;
             return;
         }
 
         IsEmpty = false;
+        BuildTagCards();
+    }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Order & Hidden Tags
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // The year's totals are kept, so moving or hiding a tag only redraws the cards; it never costs
+    // another pass over the data. The cards ARE rebuilt, though, rather than shuffled: each chart
+    // disposes its series when it unloads, so a card moved to a new container must bring new ones.
+
+    private sealed record BuiltYear(int Year, DateTime FirstCell, int WeekCount,
+        List<TagDailyTotals> PerTag, Dictionary<string, TagWeekHourTotals> PerTagHours);
+
+    private BuiltYear? _built;
+
+    // Every tag of the year in display order: the stored order first, anything it does not
+    // mention after it, biggest first (the order the aggregation already hands them in)
+    private List<string> ArrangedTags()
+    {
+        var present = _built!.PerTag.Select(t => t.Tag).ToList();
+        var stored = _settingsService.StatisticsTagOrder;
+        return stored.Where(present.Contains)
+            .Concat(present.Where(t => !stored.Contains(t)))
+            .ToList();
+    }
+
+    private void BuildTagCards()
+    {
+        if (_built is null) return;
+        var (year, firstCell, weekCount, perTag, perTagHours) = _built;
+
+        var byName = perTag.ToDictionary(t => t.Tag);
+        var hidden = _settingsService.StatisticsHiddenTags;
+        var arranged = ArrangedTags();
+        var visible = arranged.Where(t => !hidden.Contains(t)).ToList();
+
+        HiddenTags = arranged
+            .Where(hidden.Contains)
+            .Select(t => new HiddenTag
+            {
+                Tag = t,
+                TagColor = Color.Parse(_settingsService.GetTagColor(t)),
+                TotalLabel = TotalLabelFor(byName[t])
+            })
+            .ToArray();
 
         var stats = new List<TagStatistics>();
-        foreach (var tag in perTag)
+        foreach (var tag in visible.Select(t => byName[t]))
         {
             // One colour per tag, one ramp from it, shared by both of that tag's grids. A shade
             // stands for a different span in each, which is why each panel carries its own strip.
@@ -208,7 +266,9 @@ public partial class StatisticsViewModel : ViewModelBase
             {
                 Tag = tag.Tag,
                 TagColor = Color.Parse(tagColor),
-                TotalLabel = $"{TimeSpan.FromSeconds(tag.TotalSeconds).TotalHours:F0}h over {tag.Days.Count} days",
+                TotalLabel = TotalLabelFor(tag),
+                CanMoveUp = stats.Count > 0,
+                CanMoveDown = stats.Count < visible.Count - 1,
                 Panels =
                 [
                     BuildYearPanel(tag, ramp, year, firstCell, weekCount),
@@ -221,6 +281,51 @@ public partial class StatisticsViewModel : ViewModelBase
 
         Debug.WriteLine($"Tag statistics built: {stats.Count} tags, {weekCount} week columns, "
             + $"{HeatmapAggregator.WeekdayCount}x{HeatmapAggregator.HourCount} active hour cells");
+    }
+
+    private static string TotalLabelFor(TagDailyTotals tag) =>
+        $"{TimeSpan.FromSeconds(tag.TotalSeconds).TotalHours:F0}h over {tag.Days.Count} days";
+
+    [RelayCommand] private void MoveTagUp(TagStatistics card) => MoveTag(card.Tag, -1);
+    [RelayCommand] private void MoveTagDown(TagStatistics card) => MoveTag(card.Tag, +1);
+
+    // Swaps the tag with its visible neighbour. Hidden tags keep their slot in the stored order,
+    // so one brought back returns to where it was rather than to the end.
+    private void MoveTag(string tag, int direction)
+    {
+        if (_built is null) return;
+
+        var hidden = _settingsService.StatisticsHiddenTags;
+        var arranged = ArrangedTags();
+        int index = arranged.IndexOf(tag);
+
+        int neighbour = index + direction;
+        while (neighbour >= 0 && neighbour < arranged.Count && hidden.Contains(arranged[neighbour]))
+            neighbour += direction;
+        if (index < 0 || neighbour < 0 || neighbour >= arranged.Count) return;
+
+        (arranged[index], arranged[neighbour]) = (arranged[neighbour], arranged[index]);
+
+        // Keep the positions of tags absent this year too, so arranging one year does not
+        // scramble another: they stay in the stored list after this year's tags
+        _settingsService.StatisticsTagOrder = arranged
+            .Concat(_settingsService.StatisticsTagOrder.Where(t => !arranged.Contains(t)))
+            .ToList();
+        BuildTagCards();
+    }
+
+    [RelayCommand]
+    private void HideTag(TagStatistics card)
+    {
+        _settingsService.StatisticsHiddenTags = _settingsService.StatisticsHiddenTags.Append(card.Tag).Distinct().ToList();
+        BuildTagCards();
+    }
+
+    [RelayCommand]
+    private void ShowTag(HiddenTag hidden)
+    {
+        _settingsService.StatisticsHiddenTags = _settingsService.StatisticsHiddenTags.Where(t => t != hidden.Tag).ToList();
+        BuildTagCards();
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
