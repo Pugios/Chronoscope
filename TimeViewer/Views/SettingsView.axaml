@@ -14,7 +14,6 @@
     <Grid ColumnDefinitions="*,Auto">
       <StackPanel VerticalAlignment="Center">
         <TextBlock Classes="PageTitle" Text="Settings" />
-        <TextBlock Classes="Secondary" Text="Where the data comes from, where it goes, and how the app starts" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <Button Content="Discard" MinWidth="96" Height="34" Command="{Binding DiscardCommand}" />
@@ -62,14 +61,12 @@
           <TextBlock Classes="SectionTitle" Text="Startup" />
 
           <ui:FASettingsExpander Header="Start with Windows"
-                                 Description="Also switchable in Task Manager under Startup apps"
                                  IconSource="Play"
                                  IsExpanded="True">
             <ui:FASettingsExpander.Footer>
               <ToggleSwitch IsChecked="{Binding StartWithWindows}" />
             </ui:FASettingsExpander.Footer>
             <ui:FASettingsExpanderItem Content="Start minimized"
-                                       Description="Open straight to the taskbar instead of showing the window"
                                        IsEnabled="{Binding StartWithWindows}">
               <ui:FASettingsExpanderItem.Footer>
                 <ToggleSwitch IsChecked="{Binding StartMinimized}" />
