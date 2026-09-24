@@ -13,6 +13,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly DataService _dataService;
     private readonly VaultExportService _vaultExportService;
+    private readonly StartupService _startupService;
     private readonly DialogService _dialogs;
 
     // The day view and Statistics keep their state (and, see IKeepAlive, their views) across trips
@@ -21,11 +22,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly StatisticsViewModel _statistics;
 
     public MainWindowViewModel(SettingsService settingsService, DataService dataService,
-        VaultExportService vaultExportService, DialogService dialogs)
+        VaultExportService vaultExportService, StartupService startupService, DialogService dialogs)
     {
         _settingsService = settingsService;
         _dataService = dataService;
         _vaultExportService = vaultExportService;
+        _startupService = startupService;
         _dialogs = dialogs;
         _day = new DayViewModel(settingsService, dataService, dialogs);
         _statistics = new StatisticsViewModel(settingsService, dataService, dialogs);
@@ -58,7 +60,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             AppSection.Statistics => _statistics,
             AppSection.Tags => new TagsViewModel(_settingsService, _dataService, _dialogs, this),
-            AppSection.Settings => new SettingsViewModel(_settingsService, _dataService, _vaultExportService, _dialogs, this),
+            AppSection.Settings => new SettingsViewModel(_settingsService, _dataService, _vaultExportService, _startupService, _dialogs, this),
             _ => _day
         };
 

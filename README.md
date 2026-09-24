@@ -64,6 +64,8 @@ project or another. For those, you can split the app by **what it had open**:
 <img alt="Settings page: mtc.exe path, refresh interval, tagging files and the Obsidian export" src="./pics/TV6.png">
 
 - Point TimeViewer at `mtc.exe` and choose the refresh interval
+- **Start with Windows**, optionally minimized to the taskbar. It is the same switch as Task
+  Manager's *Startup apps* tab, so turning it off in either place turns it off in both
 - Keep `tags.csv` and `explorer-processes.csv` wherever you like, for example in a synced folder
   shared between machines
 - **Obsidian export**: write per-tag heatmap data into your vault on every refresh, with the time of
@@ -79,7 +81,8 @@ project or another. For those, you can split the app by **what it had open**:
 
 1. Install [ManicTime](https://www.manictime.com/) and let it track for a while.
 2. Download `TimeViewerSetup.exe` from the [latest release](https://github.com/Pugios/TimeManagement/releases/latest) and install it.
-   Windows 10 (1809) or later, x64.
+   Windows 10 (1809) or later, x64. The installer offers to start TimeViewer with Windows
+   (on by default, and optionally minimized). You can change this later in Settings or Task Manager.
 3. In **Settings**, check the path to `mtc.exe` (the default is `C:\Program Files\ManicTime\mtc.exe`).
 4. Open **Tags**, sort the table by Total Time and start tagging your biggest apps. Anything you
    haven't tagged yet is counted under **No Clue**, so there's no need to do it all at once.

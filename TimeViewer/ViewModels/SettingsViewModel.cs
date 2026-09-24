@@ -11,15 +11,18 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly DataService _dataService;
     private readonly VaultExportService _vaultExportService;
+    private readonly StartupService _startupService;
     private readonly DialogService _dialogs;
     private readonly MainWindowViewModel _shell;
 
     public SettingsViewModel(SettingsService settingsService, DataService dataService,
-        VaultExportService vaultExportService, DialogService dialogs, MainWindowViewModel shell)
+        VaultExportService vaultExportService, StartupService startupService,
+        DialogService dialogs, MainWindowViewModel shell)
     {
         _settingsService = settingsService;
         _dataService = dataService;
         _vaultExportService = vaultExportService;
+        _startupService = startupService;
         _dialogs = dialogs;
         _shell = shell;
     }
@@ -32,6 +35,10 @@ public partial class SettingsViewModel : ViewModelBase
         ObsidianExportEnabled = _settingsService.ObsidianExportEnabled;
         TagsCsvPath = _settingsService.TagsCsvPath;
         ExplorerRulesCsvPath = _settingsService.ExplorerRulesCsvPath;
+
+        // Read fresh on every visit: Task Manager can flip it while the app is running
+        _startup = _startupService.Read();
+        (StartWithWindows, StartMinimized) = _startup;
 
         // The page lives on in the history, so it can be navigated to again: never subscribe twice
         _vaultExportService.StatusChanged -= OnExportStatusChanged;
@@ -65,6 +72,24 @@ public partial class SettingsViewModel : ViewModelBase
 
     public decimal MinRefreshMinutes => SettingsService.MinRefreshMinutes;
     public decimal MaxRefreshMinutes => SettingsService.MaxRefreshMinutes;
+
+    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Startup
+    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // The same switch as Task Manager's Startup apps tab - see StartupService.
+
+    public bool IsStartupSupported => _startupService.IsSupported;
+
+    // What the registry said on arrival, so Save only writes what was actually changed here and
+    // never overrides a Task Manager toggle the page merely displayed
+    private (bool Enabled, bool Minimized) _startup;
+
+    [ObservableProperty]
+    public partial bool StartWithWindows { get; set; }
+
+    // Only means anything for a start with Windows; the page greys it out otherwise
+    [ObservableProperty]
+    public partial bool StartMinimized { get; set; }
 
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Obsidian Vault Export
@@ -217,6 +242,13 @@ public partial class SettingsViewModel : ViewModelBase
         _settingsService.ExplorerRulesCsvPath = ExplorerRulesCsvPath;
 
         await _settingsService.SaveAsync();
+
+        if ((StartWithWindows, StartMinimized) != _startup
+            && !_startupService.Write(StartWithWindows, StartMinimized))
+        {
+            await _dialogs.AlertAsync("Start with Windows",
+                "The startup entry could not be changed. You can still switch it in Task Manager under Startup apps.");
+        }
 
         // Everything on screen was built from the old files; the next page to ask reloads
         if (filesMoved)
