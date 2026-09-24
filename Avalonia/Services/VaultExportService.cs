@@ -41,7 +41,9 @@ public class VaultExportService
 
         // Every year, not just the one on screen - otherwise the vault could only ever render
         // the current year.
-        var perTag = HeatmapAggregator.AggregateTagDays(data, year: null);
+        // Off the UI thread: it walks every year of the dataset, and this runs on every Statistics
+        // visit. The data is never mutated once loaded, so reading it from here is safe.
+        var perTag = await Task.Run(() => HeatmapAggregator.AggregateTagDays(data, year: null));
 
         var payload = new HeatmapExport
         {
@@ -87,7 +89,7 @@ public class VaultExportService
         // swap it in: a reader sees either the old file or the new one, never a truncated one.
         string finalPath = Path.Combine(folder, FileName);
         string tempPath = finalPath + ".tmp";
-        await File.WriteAllTextAsync(tempPath, json);
+        await Task.Run(() => File.WriteAllText(tempPath, json));
         File.Move(tempPath, finalPath, overwrite: true);
 
         return finalPath;

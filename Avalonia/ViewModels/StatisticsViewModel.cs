@@ -8,6 +8,7 @@ using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 using System.Diagnostics;
+using Avalonia.Threading;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -55,6 +56,7 @@ public partial class StatisticsViewModel : ViewModelBase
     // a later visit (Back / Forward) must get fresh ones rather than these. RefreshAsync rebuilds.
     public override void OnNavigatedFrom()
     {
+        _generation++; // stops a card fill still in progress
         TagStats = [];
         HiddenTags = [];
     }
@@ -73,7 +75,7 @@ public partial class StatisticsViewModel : ViewModelBase
             // MainPage has already primed the shared DataService, so the default path costs no
             // ManicTime export - only the refresh button pays for one.
             var apps = await _dataService.GetMergedDataAsync(forceReload);
-            LoadTagStatistics(apps, _year);
+            await LoadTagStatisticsAsync(apps, _year);
 
             // The chart is the point of this page; a vault that has moved or is on an unplugged
             // drive must not take it down with it. The Export button reports failures out loud.
@@ -174,7 +176,7 @@ public partial class StatisticsViewModel : ViewModelBase
     // One row per tag: the title, then two grids side by side. Year Overview answers how much and
     // on which days; Active Hours answers when during the day. Both cover the same year and are
     // built from the same set of activities, so they can be read against each other.
-    private void LoadTagStatistics(IReadOnlyList<AppsTagsTable> data, int year)
+    private async Task LoadTagStatisticsAsync(IReadOnlyList<AppsTagsTable> data, int year)
     {
         DisplayYear = year.ToString();
 
@@ -187,13 +189,16 @@ public partial class StatisticsViewModel : ViewModelBase
 
         // Daily totals per tag, biggest tag first. Shared with the Obsidian vault export so the
         // two can never disagree - see HeatmapAggregator for the floor and the midnight rule.
-        var perTag = HeatmapAggregator.AggregateTagDays(data, year);
-
+        //
         // The second grid's numbers, looked up by tag rather than zipped: the loop below is driven
         // by the daily totals, so nothing can pair one tag's year with another tag's hours. Both
         // aggregations select rows identically, so every tag here has an entry there.
-        var perTagHours = HeatmapAggregator.AggregateTagWeekHours(data, year)
-            .ToDictionary(t => t.Tag);
+        //
+        // Both are pure number crunching over the whole dataset, so they run off the UI thread;
+        // the dataset is never mutated once loaded (a reload replaces it), so that is safe.
+        var (perTag, perTagHours) = await Task.Run(() => (
+            HeatmapAggregator.AggregateTagDays(data, year),
+            HeatmapAggregator.AggregateTagWeekHours(data, year).ToDictionary(t => t.Tag)));
 
         _built = new BuiltYear(year, firstCell, weekCount, perTag, perTagHours);
 
@@ -234,39 +239,58 @@ public partial class StatisticsViewModel : ViewModelBase
             .ToList();
     }
 
-    // Every card of the year, hidden ones included, each with its charts. Built once per load;
-    // everything after that only rearranges them (see ApplyArrangement).
+    // Every card of the year, hidden ones included - but without their charts yet. The cards
+    // (title, total, arrange buttons) appear at once at full height; FillPanelsAsync then gives
+    // them their charts one at a time, top to bottom, letting the window draw and respond in
+    // between. Building every chart in one go blocked the UI thread for a second or more.
     private void BuildTagCards()
     {
         if (_built is null) return;
-        var (year, firstCell, weekCount, perTag, perTagHours) = _built;
 
-        var cards = new List<TagStatistics>();
-        foreach (var tag in perTag)
-        {
-            // One colour per tag, one ramp from it, shared by both of that tag's grids. A shade
-            // stands for a different span in each, which is why each panel carries its own strip.
-            string tagColor = _settingsService.GetTagColor(tag.Tag);
-            string[] ramp = _settingsService.BuildTagRamp(tagColor, HeatmapAggregator.ShadeLevels);
-
-            cards.Add(new TagStatistics
+        TagStats = _built.PerTag
+            .Select(tag => new TagStatistics
             {
                 Tag = tag.Tag,
-                TagColor = Color.Parse(tagColor),
-                TotalLabel = TotalLabelFor(tag),
-                Panels =
-                [
-                    BuildYearPanel(tag, ramp, year, firstCell, weekCount),
-                    BuildActiveHoursPanel(perTagHours[tag.Tag], ramp)
-                ]
-            });
-        }
-
-        TagStats = cards.ToArray();
+                TagColor = Color.Parse(_settingsService.GetTagColor(tag.Tag)),
+                TotalLabel = TotalLabelFor(tag)
+            })
+            .ToArray();
         ApplyArrangement();
 
-        Debug.WriteLine($"Tag statistics built: {cards.Count} tags, {weekCount} week columns, "
-            + $"{HeatmapAggregator.WeekdayCount}x{HeatmapAggregator.HourCount} active hour cells");
+        _ = FillPanelsAsync(++_generation);
+    }
+
+    // Bumped whenever the cards are replaced or the page is left, so a fill still running for the
+    // old cards stops instead of building charts nobody will see
+    private int _generation;
+
+    private async Task FillPanelsAsync(int generation)
+    {
+        // Top of the page first. Hidden cards are skipped: they get their charts when shown.
+        foreach (var card in TagStats.Where(c => !c.IsHidden).OrderBy(c => c.DisplayIndex).ToList())
+        {
+            // Yield first, so the page (and each chart added so far) is drawn before the next one
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            if (generation != _generation) return;
+            EnsurePanels(card);
+        }
+    }
+
+    private void EnsurePanels(TagStatistics card)
+    {
+        if (_built is null || card.Panels.Length > 0) return;
+        var (_, firstCell, weekCount, perTag, perTagHours) = _built;
+        var tag = perTag.First(t => t.Tag == card.Tag);
+
+        // One colour per tag, one ramp from it, shared by both of that tag's grids. A shade
+        // stands for a different span in each, which is why each panel carries its own strip.
+        string[] ramp = _settingsService.BuildTagRamp(_settingsService.GetTagColor(tag.Tag), HeatmapAggregator.ShadeLevels);
+
+        card.Panels =
+        [
+            BuildYearPanel(tag, ramp, _built.Year, firstCell, weekCount),
+            BuildActiveHoursPanel(perTagHours[tag.Tag], ramp)
+        ];
     }
 
     // Puts the existing cards in the stored order and hides the stored hidden ones, in place.
@@ -343,6 +367,9 @@ public partial class StatisticsViewModel : ViewModelBase
     private void ShowTag(HiddenTag hidden)
     {
         _settingsService.StatisticsHiddenTags = _settingsService.StatisticsHiddenTags.Where(t => t != hidden.Tag).ToList();
+        // Charts are built on first show; the card fades in, which covers their first blank frame
+        if (TagStats.FirstOrDefault(c => c.Tag == hidden.Tag) is { } card)
+            EnsurePanels(card);
         ApplyArrangement();
     }
 

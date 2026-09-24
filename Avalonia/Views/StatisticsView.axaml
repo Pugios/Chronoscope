@@ -104,8 +104,10 @@
                 </StackPanel>
                 </Grid>
 
-                <!-- This tag's grids, drawn left to right: Year Overview, then Active Hours -->
-                <ItemsControl ItemsSource="{Binding Panels}">
+                <!-- This tag's grids, drawn left to right: Year Overview, then Active Hours. They
+                     arrive a moment after the card itself (see FillPanelsAsync); the minimum
+                     height is theirs, so the page does not shift as they fill in. -->
+                <ItemsControl ItemsSource="{Binding Panels}" MinHeight="172">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Horizontal" Spacing="28" />

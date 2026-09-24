@@ -73,7 +73,11 @@ public partial class TagStatistics : ObservableObject
     public string Tag { get; init; } = "";
     public Color TagColor { get; init; } = Colors.Transparent; // the dot beside the title
     public string TotalLabel { get; init; } = "";              // "412h over 231 days"
-    public HeatmapPanel[] Panels { get; init; } = [];          // exactly two, in draw order
+
+    // Exactly two, in draw order - once built. They start empty and are filled a card at a time
+    // after the page is up (and only when the card is shown), because creating ~50 charts in one
+    // go froze the window for a second or more on a full year.
+    [ObservableProperty] public partial HeatmapPanel[] Panels { get; set; } = [];
 
     [ObservableProperty] public partial int DisplayIndex { get; set; }  // place on the page
     [ObservableProperty] public partial bool IsHidden { get; set; }
