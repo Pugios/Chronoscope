@@ -56,9 +56,9 @@
 
     <!-- Both orientations: a 53 week grid plus the hour grid beside it is wider than the
          compact window the app is usually pinned at, so the charts scroll rather than squash -->
-    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+    <ScrollViewer x:Name="StatsScroll" Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="24" Margin="0,0,0,24">
-      <ItemsControl ItemsSource="{Binding TagStats}">
+      <ItemsControl x:Name="TagCards" ItemsSource="{Binding TagStats}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Spacing="12" />
@@ -81,22 +81,16 @@
                              VerticalAlignment="Center" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
-                  <Button Classes="Icon Subtle"
-                          ToolTip.Tip="Move up" IsEnabled="{Binding CanMoveUp}"
-                          Command="{Binding $parent[ItemsControl].((vm:StatisticsViewModel)DataContext).MoveTagUpCommand}"
-                          CommandParameter="{Binding}">
+                  <Button Classes="Icon Subtle MoveUp"
+                          ToolTip.Tip="Move up" IsEnabled="{Binding CanMoveUp}">
                     <ui:FASymbolIcon Symbol="ChevronUp" />
                   </Button>
-                  <Button Classes="Icon Subtle"
-                          ToolTip.Tip="Move down" IsEnabled="{Binding CanMoveDown}"
-                          Command="{Binding $parent[ItemsControl].((vm:StatisticsViewModel)DataContext).MoveTagDownCommand}"
-                          CommandParameter="{Binding}">
+                  <Button Classes="Icon Subtle MoveDown"
+                          ToolTip.Tip="Move down" IsEnabled="{Binding CanMoveDown}">
                     <ui:FASymbolIcon Symbol="ChevronDown" />
                   </Button>
-                  <Button Classes="Icon Subtle"
-                          ToolTip.Tip="Hide this tag"
-                          Command="{Binding $parent[ItemsControl].((vm:StatisticsViewModel)DataContext).HideTagCommand}"
-                          CommandParameter="{Binding}">
+                  <Button Classes="Icon Subtle Hide"
+                          ToolTip.Tip="Hide this tag">
                     <ui:FASymbolIcon Symbol="Remove" />
                   </Button>
                 </StackPanel>
@@ -167,9 +161,12 @@
       </ItemsControl>
 
       <!-- Hidden tags, set aside at the very bottom until brought back -->
-      <StackPanel IsVisible="{Binding HasHiddenTags}" HorizontalAlignment="Left">
+      <!-- Capped at the visible width, so the chips wrap onto new lines instead of widening the
+           page (the grids above scroll sideways, which would otherwise let this grow forever) -->
+      <StackPanel IsVisible="{Binding HasHiddenTags}" HorizontalAlignment="Left"
+                  MaxWidth="{Binding #StatsScroll.Viewport.Width}">
         <TextBlock Classes="SectionTitle" Text="Hidden tags" />
-        <ItemsControl ItemsSource="{Binding HiddenTags}">
+        <ItemsControl x:Name="HiddenChips" ItemsSource="{Binding HiddenTags}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <WrapPanel ItemSpacing="10" LineSpacing="10" />
@@ -185,9 +182,7 @@
                     <TextBlock Text="{Binding Tag}" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding TotalLabel}" Classes="Caption" />
                   </StackPanel>
-                  <Button Margin="6,0,0,0" VerticalAlignment="Center"
-                          Command="{Binding $parent[ItemsControl].((vm:StatisticsViewModel)DataContext).ShowTagCommand}"
-                          CommandParameter="{Binding}">
+                  <Button Classes="Show" Margin="6,0,0,0" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                       <ui:FASymbolIcon Symbol="Add" FontSize="14" />
                       <TextBlock Text="Show" VerticalAlignment="Center" />
