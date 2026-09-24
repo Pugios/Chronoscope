@@ -21,9 +21,6 @@ public class StartupService
     public const string MinimizedArg = "--minimized";
 
     private const string ValueName = "Chronoscope";
-
-    // The entry from before the rename: it would start an exe that no longer exists
-    private const string LegacyValueName = "TimeViewer";
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
 
@@ -76,13 +73,9 @@ public class StartupService
         string command = $"\"{exe}\"" + (minimized ? $" {MinimizedArg}" : "");
 
         using (var run = Registry.CurrentUser.CreateSubKey(RunKey))
-        {
             run.SetValue(ValueName, command, RegistryValueKind.String);
-            run.DeleteValue(LegacyValueName, throwOnMissingValue: false);
-        }
 
         using var approved = Registry.CurrentUser.CreateSubKey(ApprovedKey);
-        approved.DeleteValue(LegacyValueName, throwOnMissingValue: false);
         var state = new byte[12];
         state[0] = enabled ? (byte)0x02 : (byte)0x03;
         // Task Manager stamps when an entry was disabled; do the same so it looks like its own

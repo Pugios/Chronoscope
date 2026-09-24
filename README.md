@@ -3,8 +3,8 @@
 **See where your time on the PC actually goes, grouped the way *you* think about it.**
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./pics/TV1.png">
-  <img alt="Chronoscope's Day page: a nested pie of tags and their apps, a legend, and a 24h timeline" src="./pics/TV1_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="./pics/CS1.png">
+  <img alt="Chronoscope's Day page: a nested pie of tags and their apps, a legend, and a 24h timeline" src="./pics/CS1_light.png">
 </picture>
 
 I find it fascinating to discover patterns in everything, including my own life. Chronoscope is the tool I built to observe my own behaviour and understand how I really spend each day at the computer.
@@ -16,40 +16,6 @@ Chronoscope answers exactly that question! Sort every app into your own categori
 > **Chronoscope needs ManicTime.** It reads ManicTime's data through its command line tool
 > (`mtc.exe`), so ManicTime has to be installed and tracking for Chronoscope to show anything.
 
-
-## Year Overview
-<img alt="Statistics page with a year heatmap and an active-hours grid per tag" src="./pics/TV5.png">
-
-- a GitHub-style heatmap card per tag for the whole year, one cell per day
-- a weekday $\times$ hour grid showing *when* in the week you spend time on that tag
-- Every card has its own legend with the real durations behind each shade
-- Reorder the cards, or hide tags you don't care about
-
-## Create your Tags
-<img alt="Tags page with tag colours and the searchable process table" src="./pics/TV2.png">
-
-- Search by process or tag and assign an existing or new tag
-- Pick each tag's colour with a full colour picker
-
-### Create Subprocess Rules
-<img alt="Subprocess rules for Visual Studio, with a live preview of the matching activities" src="./pics/TV4.png">
-
-Some apps are used for many things: a browser can be work or YouTube, an editor can be one project or another. For those, you can split the app by **what it had open**:
-
-- Match on the window name, the document name or the domain, by prefix, substring or suffix
-- Rules are ordered and the first match wins. Reorder them any time
-- A **live preview** shows exactly which activities each rule catches
-
-## Settings
-<img alt="Settings page: mtc.exe path, refresh interval, tagging files and the Obsidian export" src="./pics/TV6.png">
-
-- Point Chronoscope at `mtc.exe` and choose the refresh interval
-- Choose to Start with Windows Startup
-- Keep `tags.csv` and `explorer-processes.csv` wherever you like, for example in a synced folder shared between machines
-- All your data stays on your machine: plain CSV and JSON files you can read, edit and back up
-- **Obsidian export**: write per-tag heatmap data into your vault on every refresh, with the time of the last export (or the reason it failed) shown right here. [More below](#obsidian-heatmap-export)
-- **Keep on top** pin, handy for a small window in the corner of your screen
-
 ## Getting started
 
 1. Install [ManicTime](https://www.manictime.com/) and let it track for a while.
@@ -58,23 +24,52 @@ Some apps are used for many things: a browser can be work or YouTube, an editor 
 4. Open **Tags**, sort the table by Total Time and start tagging your biggest apps. Anything you haven't tagged yet is counted under **No Clue**, so there's no need to do it all at once.
 
 
-## Obsidian Heatmap Export
+## Features
+
+### Year Overview
+<img alt="Statistics page with a year heatmap and an active-hours grid per tag" src="./pics/CS2.png">
+
+- a GitHub-style heatmap card per tag for the whole year, one cell per day
+- a weekday $\times$ hour grid showing *when* in the week you spend time on that tag
+- Every card has its own legend with the real durations behind each shade
+- Reorder the cards, or hide tags you don't care about
+
+### Create your Tags
+<img alt="Tags page with tag colours and the searchable process table" src="./pics/CS3.png">
+
+- Search by process or tag and assign an existing or new tag
+- Pick each tag's colour with a full colour picker
+
+### Create Subprocess Rules
+<img alt="Subprocess rules for Visual Studio, with a live preview of the matching activities" src="./pics/CS4.png">
+
+Some apps are used for many things: a browser can be work or YouTube, an editor can be one project or another. For those, you can split the app by **what it had open**:
+
+- Match on the window name, the document name or the domain, by prefix, substring or suffix
+- Rules are ordered and the first match wins. Reorder them any time
+- A **live preview** shows exactly which activities each rule catches
+
+### Settings
+<img alt="Settings page: mtc.exe path, refresh interval, tagging files and the Obsidian export" src="./pics/CS5.png">
+
+- Point Chronoscope at `mtc.exe` and choose the refresh interval
+- Choose to Start with Windows Startup
+- Keep `tags.csv` and `explorer-processes.csv` wherever you like, for example in a synced folder shared between machines
+- All your data stays on your machine: plain CSV and JSON files you can read, edit and back up
+- **Obsidian export**: write per-tag heatmap data into your vault on every refresh, with the time of the last export (or the reason it failed) shown right here. [More below](#obsidian-heatmap-export)
+- **Keep on top** pin, handy for a small window in the corner of your screen
+
+### Obsidian Heatmap Export
 
 Chronoscope can write its per-tag heatmap data into an Obsidian vault, so the [Heatmap Calendar](https://github.com/Richardsl/heatmap-calendar-obsidian) community plugin can render a calendar per tag next to whatever else you already track there.
 
-Enable it in **Settings**: pick a folder and flip the switch. The folder **must be inside the
-vault** - dataviewjs' `dv.io.load()` resolves vault-relative paths only, so anything outside it is
-unreachable from a note. Chronoscope then rewrites `chronoscope-heatmap.json` there every time it
-loads data from ManicTime (either Reload button or the automatic refresh) and whenever a tag colour
-changes. Settings shows when the file was last written, or why the last attempt failed. Dataview
-notices the change and re-renders on its own; the two apps never talk directly.
+Enable it in **Settings**, just pick a folder inside your vault. Chronoscope then rewrites `chronoscope-heatmap.json` there every time it loads data. 
+Settings shows when the file was last written, or why the last attempt failed.
 
 ### Format
 
-Values are **seconds**, covering every year in your ManicTime data rather than just the year on
-screen. `ramp` is the tag's own colour ramp as the app draws it, pale to saturated.
-`thresholds` are the cut points between shades, **per year**, so a note can colour days exactly
-the way the app does and label what each shade means.
+Values are **seconds**, covering every year in your ManicTime data. `ramp` is the tag's own colour ramp as the app draws it, pale to saturated.
+`thresholds` are the cut points between shades, **per year**, so a note can colour days exactly the way the app does and label what each shade means.
 
 ```json
 {
@@ -90,34 +85,9 @@ the way the app does and label what each shade means.
   }
 }
 ```
+Dark cells mean *a heavy day for that tag*, not a fixed number of hours, so drawing the legend below it worth. The scale differs between tags!
 
-Two rules the numbers follow, shared with the pie chart and the timeline so every view agrees:
-activities under 30s are ignored, and an activity crossing midnight counts wholly toward the day it
-started on.
-
-### How the shades are decided
-
-Each tag is scaled **against its own days, within one year** - quartiles, not a linear split of the
-maximum, so one exceptional day cannot wash out the whole year. A day lands in the first step it
-fits under:
-
-| step | covers | with `thresholds: [1h, 2h, 5h]` |
-|---|---|---|
-| 0 | nothing tracked | - |
-| 1 | up to `thresholds[0]` | up to 1h |
-| 2 | up to `thresholds[1]` | 1h - 2h |
-| 3 | up to `thresholds[2]` | 2h - 5h |
-| 4 | everything above | over 5h |
-
-So a dark cell means *a heavy day for that tag*, not a fixed number of hours - which is exactly why
-the legend below is worth drawing. Two consequences worth knowing: the scale differs between tags,
-and a tag with only one or two active days produces tied quartiles, so some steps cover nothing and
-their labels repeat.
-
-### Rendering it, with a legend
-
-Paste into any note, set `tag` and `year` to taste. This reproduces the app's own buckets, so the
-note and the Statistics page agree cell for cell.
+Paste into any note, set `tag` and `year` to taste. This reproduces the app's own buckets, so the note and the Statistics page agree cell for cell.
 
 ````markdown
 ```dataviewjs
@@ -228,32 +198,3 @@ this.container.querySelectorAll(".heatmap-calendar-boxes li[data-date]").forEach
 ````
 
 To list what is available instead of hardcoding a tag: `Object.keys(data.tags)`.
-
-### Hovering a day
-
-The tooltip needs **no per-day notes**. The tag's daily seconds are already in the one JSON, so the
-hover handler reads them straight out of `t.days[date]` - nothing is added to the vault. It reports
-the tag the calendar is drawn for and nothing else; every other tag's numbers are in the same file
-if you ever want a fuller breakdown.
-
-It hooks the rendered grid rather than the plugin's `content` field, because `content` is meant for
-a link element (that is what makes your happiness cells open their note) and lands as raw text
-inside a ~12px box otherwise. The two things that make hooking the DOM safe are guaranteed by the
-plugin itself: it stamps `data-date="YYYY-MM-DD"` on every box that has an entry, and its stylesheet
-sets `.heatmap-calendar-boxes li { position: relative }`, so an absolutely positioned child sits
-over the right cell. Days with nothing tracked get no `data-date` and so no tooltip, which is the
-correct behaviour - there is nothing to report.
-
-If you would rather have one line than thirty, the native browser tooltip works too, at the cost of
-a delay and OS styling:
-
-```js
-this.container.querySelectorAll(".heatmap-calendar-boxes li[data-date]").forEach(box =>
-    box.title = `${box.dataset.date}: ${fmtLong(t.days[box.dataset.date])}`)
-```
-
-> Verified against Heatmap Calendar **0.7.1**. That version maps intensity with
-> `Math.round(map(intensity, scaleStart, scaleEnd, 1, colors.length))`, so `intensityScaleStart: 1`
-> / `intensityScaleEnd: 4` over a four-colour ramp is the identity - bucket *n* gets shade *n*. If
-> you upgrade and the shades shift, those two numbers are the only thing to adjust; the buckets,
-> the legend and the tooltip are computed here and stay correct either way.
