@@ -19,7 +19,7 @@ Chronoscope answers exactly that question! Sort every app into your own categori
 ## Getting started
 
 1. Install [ManicTime](https://www.manictime.com/) and let it track for a while.
-2. Download `ChronoscopeSetup.exe` from the [latest release](https://github.com/Pugios/TimeManagement/releases/latest) and install it. Windows 10 (1809) or later, x64. 
+2. Download `ChronoscopeSetup.exe` from the [latest release](https://github.com/Pugios/Chronoscope/releases/latest) and install it. Windows 10 (1809) or later, x64. 
 3. In **Settings**, check the path to `mtc.exe` (the default is `C:\Program Files\ManicTime\mtc.exe`).
 4. Open **Tags**, sort the table by Total Time and start tagging your biggest apps. Anything you haven't tagged yet is counted under **No Clue**, so there's no need to do it all at once.
 
