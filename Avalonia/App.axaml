@@ -11,20 +11,6 @@
     <local:ViewLocator />
   </Application.DataTemplates>
 
-  <Application.Resources>
-    <ResourceDictionary>
-      <ResourceDictionary.ThemeDictionaries>
-        <!-- The empty stretch of the day timeline, between activities -->
-        <ResourceDictionary x:Key="Light">
-          <SolidColorBrush x:Key="TimelineTrackBrush" Color="#E6E6E6" />
-        </ResourceDictionary>
-        <ResourceDictionary x:Key="Dark">
-          <SolidColorBrush x:Key="TimelineTrackBrush" Color="#141414" />
-        </ResourceDictionary>
-      </ResourceDictionary.ThemeDictionaries>
-    </ResourceDictionary>
-  </Application.Resources>
-
   <Application.Styles>
     <sty:FluentAvaloniaTheme PreferSystemTheme="True"
                              PreferUserAccentColor="True" />

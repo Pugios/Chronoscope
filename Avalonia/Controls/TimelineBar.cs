@@ -29,7 +29,7 @@ public class TimelineBar : Control
     public static readonly StyledProperty<DateTime> WindowStartProperty =
         AvaloniaProperty.Register<TimelineBar, DateTime>(nameof(WindowStart));
 
-    // The empty track between activities
+    // The empty track between activities (the "Remaining" tag colour)
     public static readonly StyledProperty<IBrush?> TrackBrushProperty =
         AvaloniaProperty.Register<TimelineBar, IBrush?>(nameof(TrackBrush));
 

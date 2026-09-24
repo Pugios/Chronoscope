@@ -311,6 +311,11 @@ public partial class DayViewModel : ViewModelBase
     [ObservableProperty]
     public partial DateTime TimelineWindowStart { get; private set; } = DateTime.Today;
 
+    // The untracked stretches of the bar, in the same "Remaining" colour the pie gives the
+    // untracked rest of the day, so a change to it in Tags shows up in both
+    [ObservableProperty]
+    public partial Color TimelineGapColor { get; private set; } = Colors.Black;
+
     private void LoadDayTimeline(IReadOnlyList<AppsTagsTable> data, DateTime day)
     {
         // Today shows the rolling last 24h ending right now, any other day shows that day
@@ -361,6 +366,7 @@ public partial class DayViewModel : ViewModelBase
         }
 
         TimelineWindowStart = windowStart;
+        TimelineGapColor = Color.Parse(_settingsService.GetTagColor("Remaining"));
         TimelineSlices = merged;
 
         Debug.WriteLine($"Timeline segments: {merged.Count}");

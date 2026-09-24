@@ -129,7 +129,7 @@
           <controls:TimelineBar x:Name="Timeline"
                                 Slices="{Binding TimelineSlices}"
                                 WindowStart="{Binding TimelineWindowStart}"
-                                TrackBrush="{DynamicResource TimelineTrackBrush}"
+                                TrackBrush="{Binding TimelineGapColor, Converter={x:Static conv:ColorConverters.ToBrush}}"
                                 LabelBrush="{DynamicResource TextFillColorSecondaryBrush}"
                                 HighlightBrush="{DynamicResource TextFillColorPrimaryBrush}" />
           <Canvas IsHitTestVisible="False" ClipToBounds="False">
