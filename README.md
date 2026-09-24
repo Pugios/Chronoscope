@@ -117,9 +117,6 @@ dotnet run                                            # develop
 dotnet publish -c Release -r win-x64 --self-contained # then compile TimeViewer.iss for the installer
 ```
 
-For the longer-term picture, [Analysis](./Analysis/) holds the Python scripts I used to find
-trends before the Statistics page existed.
-
 ---
 
 ## Obsidian Heatmap Export

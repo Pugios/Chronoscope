@@ -64,10 +64,8 @@ nunit-*.xml
 
 # Own Ignores
 
-# Personal ManicTime data. These were tracked before the rule existed and were
-# stripped from history; the files themselves stay on disk.
-Analysis/data/
-Analysis/ManicTimeBackup/
+# Personal ManicTime data
+Analysis/*
 
 data/*
 graphs/*
