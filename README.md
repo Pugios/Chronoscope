@@ -1,133 +1,70 @@
-# TimeViewer
+# Chronoscope
 
 **See where your time on the PC actually goes, grouped the way *you* think about it.**
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./pics/TV1.png">
-  <img alt="TimeViewer's Day page: a nested pie of tags and their apps, a legend, and a 24h timeline" src="./pics/TV1_light.png">
+  <img alt="Chronoscope's Day page: a nested pie of tags and their apps, a legend, and a 24h timeline" src="./pics/TV1_light.png">
 </picture>
 
-I find it fascinating to discover patterns in everything, including my own life. TimeViewer is the
-tool I built to observe my own behaviour and understand how I really spend each day at the computer.
+I find it fascinating to discover patterns in everything, including my own life. Chronoscope is the tool I built to observe my own behaviour and understand how I really spend each day at the computer.
 
-It sits on top of [ManicTime](https://www.manictime.com/), which quietly records the active window
-all day. ManicTime's own views make it hard to get a quick, honest answer to *"how long did I actually
-work today?"*. TimeViewer answers it: you sort every app into your own categories (tags) once, and
-from then on every day, week and year is broken down by them.
+It sits on top of [ManicTime](https://www.manictime.com/), which quietly records the active window all day. ManicTime's own views are great for tracking how much time to bill a client for a project. But, they are not helpful for quickly answering **"How did I spend my day today?"**
 
-> **TimeViewer needs ManicTime.** It reads ManicTime's data through its command line tool
-> (`mtc.exe`), so ManicTime has to be installed and tracking for TimeViewer to show anything.
+Chronoscope answers exactly that question! Sort every app into your own categories once, and from then on see when you do what.
 
-## Features
+> **Chronoscope needs ManicTime.** It reads ManicTime's data through its command line tool
+> (`mtc.exe`), so ManicTime has to be installed and tracking for Chronoscope to show anything.
 
-### Day view
-A nested pie chart of one day: your tags on the inside, the apps behind them on the outside, and the
-total tracked time in the middle. Beneath it, a **24h timeline** shows *when* each thing happened,
-with details on hover.
 
-- "Today" shows the **rolling last 24 hours**, so the chart is never empty just after midnight
-- Step back and forth by day or by week, or jump straight back to today
-- Refreshes itself from ManicTime on a timer you choose (every 5 minutes by default)
-
-### Statistics
+## Year Overview
 <img alt="Statistics page with a year heatmap and an active-hours grid per tag" src="./pics/TV5.png">
 
-A card per tag for the whole year:
+- a GitHub-style heatmap card per tag for the whole year, one cell per day
+- a weekday $\times$ hour grid showing *when* in the week you spend time on that tag
+- Every card has its own legend with the real durations behind each shade
+- Reorder the cards, or hide tags you don't care about
 
-- **Year Overview**: a GitHub-style heatmap, one cell per day
-- **Active Hours**: a weekday × hour grid showing *when* in the week you spend time on that tag
-- Each tag is shaded against its own year, so a dark cell means "a heavy day for this tag". Every
-  card has its own legend with the real durations behind each shade
-- Reorder the cards, or hide tags you don't care about. The layout is remembered
-
-### Tags
+## Create your Tags
 <img alt="Tags page with tag colours and the searchable process table" src="./pics/TV2.png">
 
-Every process ManicTime has ever seen, with its total time and when it was last used.
+- Search by process or tag and assign an existing or new tag
+- Pick each tag's colour with a full colour picker
 
-- Search by process or tag, multi-select rows and assign a tag (or create a new one) in one go
-- Pick each tag's colour with a full colour picker. The colours carry through to every chart
-
-<img alt="The colour picker open on a tag" src="./pics/TV3.png" width="70%">
-
-### Subprocess rules
+### Create Subprocess Rules
 <img alt="Subprocess rules for Visual Studio, with a live preview of the matching activities" src="./pics/TV4.png">
 
-Some apps are used for many things: a browser can be work or YouTube, an editor can be one
-project or another. For those, you can split the app by **what it had open**:
+Some apps are used for many things: a browser can be work or YouTube, an editor can be one project or another. For those, you can split the app by **what it had open**:
 
 - Match on the window name, the document name or the domain, by prefix, substring or suffix
 - Rules are ordered and the first match wins. Reorder them any time
-- A **live preview** shows exactly which activities each rule catches before you confirm
+- A **live preview** shows exactly which activities each rule catches
 
-### Settings
+## Settings
 <img alt="Settings page: mtc.exe path, refresh interval, tagging files and the Obsidian export" src="./pics/TV6.png">
 
-- Point TimeViewer at `mtc.exe` and choose the refresh interval
-- **Start with Windows**, optionally minimized to the taskbar. It is the same switch as Task
-  Manager's *Startup apps* tab, so turning it off in either place turns it off in both
-- Keep `tags.csv` and `explorer-processes.csv` wherever you like, for example in a synced folder
-  shared between machines
-- **Obsidian export**: write per-tag heatmap data into your vault on every refresh, with the time of
-  the last export (or the reason it failed) shown right here. [More below](#obsidian-heatmap-export)
-
-### And around it
-- Fluent design with a navigation pane, following your **system light/dark theme and accent colour**
-- **Keep on top** pin, handy for a small window in the corner of your screen
-- Navigate back and forward with the mouse's thumb buttons
+- Point Chronoscope at `mtc.exe` and choose the refresh interval
+- Choose to Start with Windows Startup
+- Keep `tags.csv` and `explorer-processes.csv` wherever you like, for example in a synced folder shared between machines
 - All your data stays on your machine: plain CSV and JSON files you can read, edit and back up
+- **Obsidian export**: write per-tag heatmap data into your vault on every refresh, with the time of the last export (or the reason it failed) shown right here. [More below](#obsidian-heatmap-export)
+- **Keep on top** pin, handy for a small window in the corner of your screen
 
 ## Getting started
 
 1. Install [ManicTime](https://www.manictime.com/) and let it track for a while.
-2. Download `TimeViewerSetup.exe` from the [latest release](https://github.com/Pugios/TimeManagement/releases/latest) and install it.
-   Windows 10 (1809) or later, x64. The installer offers to start TimeViewer with Windows
-   (on by default, and optionally minimized). You can change this later in Settings or Task Manager.
+2. Download `ChronoscopeSetup.exe` from the [latest release](https://github.com/Pugios/TimeManagement/releases/latest) and install it. Windows 10 (1809) or later, x64. 
 3. In **Settings**, check the path to `mtc.exe` (the default is `C:\Program Files\ManicTime\mtc.exe`).
-4. Open **Tags**, sort the table by Total Time and start tagging your biggest apps. Anything you
-   haven't tagged yet is counted under **No Clue**, so there's no need to do it all at once.
+4. Open **Tags**, sort the table by Total Time and start tagging your biggest apps. Anything you haven't tagged yet is counted under **No Clue**, so there's no need to do it all at once.
 
-Your tags, rules and settings live in `%LOCALAPPDATA%\TimeViewer\com.pugio.timeviewer\Data`.
-
-## Tech stack
-
-TimeViewer is a .NET desktop app on a cross-platform UI stack, built entirely on free, open-source
-libraries:
-
-| | |
-|---|---|
-| Runtime | [.NET 10](https://dotnet.microsoft.com/), C# |
-| UI framework | [Avalonia 12](https://avaloniaui.net/) |
-| Design | [FluentAvalonia](https://github.com/amwx/FluentAvalonia) (WinUI-style Fluent controls, system theme and accent) |
-| Charts | [LiveCharts2](https://livecharts.dev/) on SkiaSharp (pie, heatmaps) plus a custom-drawn timeline control |
-| Architecture | MVVM with [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) source generators and compiled bindings |
-| Data | ManicTime CLI (`mtc.exe`) exports, parsed with [CsvHelper](https://joshclose.github.io/CsvHelper/) |
-| Installer | [Inno Setup](https://jrsoftware.org/isinfo.php) |
-
-TimeViewer started out as a .NET MAUI app. Version 1.0 is a full rewrite in Avalonia: a proper
-desktop UI instead of a mobile-first one, no commercial component licences, and a path to Linux.
-It reads the same files as the MAUI version, so an existing setup carries straight over. The MAUI
-code is preserved at the [`maui-final`](https://github.com/Pugios/TimeManagement/tree/maui-final) tag.
-
-### Building from source
-
-```
-cd TimeViewer
-dotnet run                                            # develop
-dotnet publish -c Release -r win-x64 --self-contained # then compile TimeViewer.iss for the installer
-```
-
----
 
 ## Obsidian Heatmap Export
 
-TimeViewer can write its per-tag heatmap data into an Obsidian vault, so the
-[Heatmap Calendar](https://github.com/Richardsl/heatmap-calendar-obsidian) community plugin can
-render a calendar per tag next to whatever else you already track there.
+Chronoscope can write its per-tag heatmap data into an Obsidian vault, so the [Heatmap Calendar](https://github.com/Richardsl/heatmap-calendar-obsidian) community plugin can render a calendar per tag next to whatever else you already track there.
 
 Enable it in **Settings**: pick a folder and flip the switch. The folder **must be inside the
 vault** - dataviewjs' `dv.io.load()` resolves vault-relative paths only, so anything outside it is
-unreachable from a note. TimeViewer then rewrites `timeviewer-heatmap.json` there every time it
+unreachable from a note. Chronoscope then rewrites `chronoscope-heatmap.json` there every time it
 loads data from ManicTime (either Reload button or the automatic refresh) and whenever a tag colour
 changes. Settings shows when the file was last written, or why the last attempt failed. Dataview
 notices the change and re-renders on its own; the two apps never talk directly.
@@ -184,7 +121,7 @@ note and the Statistics page agree cell for cell.
 
 ````markdown
 ```dataviewjs
-const path = "TimeViewer/timeviewer-heatmap.json"
+const path = "Chronoscope/chronoscope-heatmap.json"
 const tag  = "Work"
 const year = 2026
 

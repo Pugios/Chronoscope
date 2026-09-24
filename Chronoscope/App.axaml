@@ -1,0 +1,67 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Chronoscope.App"
+             xmlns:local="using:Chronoscope"
+             xmlns:sty="using:FluentAvalonia.Styling"
+             Name="Chronoscope"
+             RequestedThemeVariant="Default">
+  <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+  <Application.DataTemplates>
+    <local:ViewLocator />
+  </Application.DataTemplates>
+
+  <Application.Styles>
+    <sty:FluentAvaloniaTheme PreferSystemTheme="True"
+                             PreferUserAccentColor="True" />
+
+    <!-- A Fluent card: the surface every page section sits on -->
+    <Style Selector="Border.Card">
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <Style Selector="TextBlock.PageTitle">
+      <Setter Property="FontSize" Value="28" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.SectionTitle">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="2,0,0,8" />
+    </Style>
+    <Style Selector="TextBlock.Secondary">
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.Caption">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!-- Borderless buttons for row actions (move, hide, delete): only the hover shows a surface -->
+    <Style Selector="Button.Subtle">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.Subtle:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+    </Style>
+    <Style Selector="Button.Subtle:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+
+    <!-- Square, icon-only buttons used for toolbars -->
+    <Style Selector="Button.Icon, ToggleButton.Icon">
+      <Setter Property="Width" Value="36" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+  </Application.Styles>
+</Application>
