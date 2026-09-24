@@ -235,11 +235,11 @@ public partial class TagsViewModel : ViewModelBase
         {
             await _dataService.ApplyTagChangesAsync(_pendingTagChanges);
         }
-        await _shell.GoBackAsync();
+        await _shell.CloseAsync();
     }
 
     [RelayCommand]
-    private Task Discard() => _shell.GoBackAsync();
+    private Task Discard() => _shell.CloseAsync();
 }
 
 

@@ -190,11 +190,11 @@ public partial class ExplorerRulesViewModel : ViewModelBase
     private async Task Confirm()
     {
         await _dataService.ReplaceExplorerRulesAsync(ProcessName, _workingRules);
-        await _shell.GoBackAsync();
+        await _shell.CloseAsync();
     }
 
     [RelayCommand]
-    private Task Cancel() => _shell.GoBackAsync();
+    private Task Cancel() => _shell.CloseAsync();
 }
 
 

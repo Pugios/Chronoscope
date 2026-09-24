@@ -74,9 +74,9 @@ public partial class SettingsViewModel : ViewModelBase
         _settingsService.ObsidianExportEnabled = ObsidianExportEnabled;
         await _settingsService.SaveAsync();
 
-        await _shell.GoBackAsync();
+        await _shell.CloseAsync();
     }
 
     [RelayCommand]
-    private Task Discard() => _shell.GoBackAsync();
+    private Task Discard() => _shell.CloseAsync();
 }
