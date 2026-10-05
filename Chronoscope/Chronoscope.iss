@@ -1,9 +1,9 @@
-; Build first:  dotnet publish -c Release -r win-x64 --self-contained
+<; Build first:  dotnet publish -c Release -r win-x64 --self-contained
 
 [Setup]
 AppId={{bd30d463-63bd-4623-a1a0-7da3305e8e14}
 AppName=Chronoscope
-AppVersion=1.0
+AppVersion=1.1
 AppPublisher=Mohamed Matar
 DefaultDirName={autopf}\Chronoscope
 DefaultGroupName=Chronoscope
