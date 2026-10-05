@@ -41,10 +41,14 @@ public class DocumentsTable
 }
 
 // Applications joined to tags.csv by Process. Also the pipeline's final output, after the
-// Explorer rules have renamed Process and ReduceTable has dropped the document columns.
+// Explorer rules have renamed Process. DocName and Domain stay empty until the documents are
+// merged in; the timeline's hover card shows them. They are the same string instances
+// CachedAppsTagsDocuments already holds, so keeping them costs two references per row.
 public class AppsTagsTable
 {
     public string Name { get; set; } = "";
+    public string DocName { get; set; } = "";
+    public string Domain { get; set; } = "";
     public DateTime Start { get; set; }
     public DateTime End { get; set; }
     public string Duration { get; set; } = "";

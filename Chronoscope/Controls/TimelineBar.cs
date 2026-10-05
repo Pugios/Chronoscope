@@ -176,10 +176,13 @@ public class TimelineBar : Control
             return;
         }
 
-        // Pixels -> seconds into the window -> the clock time under the pointer
-        var time = WindowStart.AddSeconds(position.X / Bounds.Width * TimeSpan.FromDays(1).TotalSeconds);
+        var time = TimeAt(position.X);
         HoveredSlice = Slices.FirstOrDefault(s => time >= s.Start && time < s.End);
     }
+
+    // Pixels -> seconds into the window -> the clock time at that x
+    public DateTime TimeAt(double x) =>
+        WindowStart.AddSeconds(x / Bounds.Width * TimeSpan.FromDays(1).TotalSeconds);
 
     protected override void OnPointerExited(PointerEventArgs e)
     {

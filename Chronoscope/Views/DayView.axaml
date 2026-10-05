@@ -124,33 +124,41 @@
 
     <!-- The 24h timeline, with its own hover card -->
     <Border Grid.Row="2" Classes="Card" Padding="20,14,20,10">
-      <StackPanel Spacing="10">
-        <TextBlock Classes="Caption" Text="Timeline" />
-        <Panel>
-          <controls:TimelineBar x:Name="Timeline"
-                                Slices="{Binding TimelineSlices}"
-                                WindowStart="{Binding TimelineWindowStart}"
-                                TrackBrush="{Binding TimelineGapColor, Converter={x:Static conv:ColorConverters.ToBrush}}"
-                                LabelBrush="{DynamicResource TextFillColorSecondaryBrush}"
-                                HighlightBrush="{DynamicResource TextFillColorPrimaryBrush}" />
-          <Canvas IsHitTestVisible="False" ClipToBounds="False">
-            <Border x:Name="TimelineTooltip"
-                    IsVisible="False"
-                    Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
-                    BorderBrush="{DynamicResource SurfaceStrokeColorFlyoutBrush}"
-                    BorderThickness="1" CornerRadius="6" Padding="10,6"
-                    BoxShadow="0 4 12 0 #40000000">
-              <StackPanel Spacing="1">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                  <Ellipse x:Name="TooltipDot" Width="8" Height="8" VerticalAlignment="Center" />
-                  <TextBlock x:Name="TooltipName" FontWeight="SemiBold" FontSize="12" />
-                </StackPanel>
-                <TextBlock x:Name="TooltipRange" FontSize="12" Classes="Secondary" />
+      <Panel>
+        <controls:TimelineBar x:Name="Timeline"
+                              Slices="{Binding TimelineSlices}"
+                              WindowStart="{Binding TimelineWindowStart}"
+                              TrackBrush="{Binding TimelineGapColor, Converter={x:Static conv:ColorConverters.ToBrush}}"
+                              LabelBrush="{DynamicResource TextFillColorSecondaryBrush}"
+                              HighlightBrush="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Canvas IsHitTestVisible="False" ClipToBounds="False">
+          <Border x:Name="TimelineTooltip"
+                  IsVisible="False"
+                  Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                  BorderBrush="{DynamicResource SurfaceStrokeColorFlyoutBrush}"
+                  BorderThickness="1" CornerRadius="6" Padding="10,6"
+                  BoxShadow="0 4 12 0 #40000000">
+            <!-- Window titles and paths can be very long; cap the card's width and let a line
+                 that does not fit scroll instead of letting the card span the whole bar -->
+            <StackPanel Spacing="1" MaxWidth="420">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse x:Name="TooltipDot" Width="8" Height="8" VerticalAlignment="Center" />
+                <TextBlock x:Name="TooltipName" FontWeight="SemiBold" FontSize="12" />
               </StackPanel>
-            </Border>
-          </Canvas>
-        </Panel>
-      </StackPanel>
+              <controls:Marquee x:Name="TooltipTitleLine" HorizontalAlignment="Left">
+                <TextBlock x:Name="TooltipTitle" FontSize="12" />
+              </controls:Marquee>
+              <controls:Marquee x:Name="TooltipDocNameLine" HorizontalAlignment="Left">
+                <TextBlock x:Name="TooltipDocName" FontSize="12" Classes="Secondary" />
+              </controls:Marquee>
+              <controls:Marquee x:Name="TooltipDomainLine" HorizontalAlignment="Left">
+                <TextBlock x:Name="TooltipDomain" FontSize="12" Classes="Secondary" />
+              </controls:Marquee>
+              <TextBlock x:Name="TooltipRange" FontSize="12" Classes="Secondary" />
+            </StackPanel>
+          </Border>
+        </Canvas>
+      </Panel>
     </Border>
   </Grid>
 </UserControl>
