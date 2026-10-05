@@ -483,7 +483,9 @@ public class DataService
                 Duration = row.Duration,
                 Process = rule is not null ? $"{row.Process} - {rule.Tag}" : row.Process,
                 OriginalProcess = row.OriginalProcess,
-                Tag = rule is not null ? rule.Tag : row.Tag
+                Tag = rule is not null ? rule.Tag : row.Tag,
+                DocName = row.DocName,
+                Domain = row.Domain
             });
         }
 

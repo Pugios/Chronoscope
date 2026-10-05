@@ -12,7 +12,15 @@ namespace Chronoscope;
 
 // A single activity block on the timeline, after clamping to the window and merging.
 // Color is the one the pie gave the process, so the bar and the pie agree.
-public sealed record TimelineSlice(string Process, string Tag, DateTime Start, DateTime End, Color Color);
+// Documents are the rows the block was merged from, in time order, so the hover card can name
+// the document open at the pointer rather than just the process.
+public sealed record TimelineSlice(string Process, string Tag, DateTime Start, DateTime End, Color Color,
+    IReadOnlyList<TimelineDocument> Documents);
+
+// One of a timeline block's rows: what ManicTime saw open in the process over that stretch.
+// Title is the window title without the app's own name (a browser's page title); DocName and
+// Domain are empty for an app ManicTime tracks no documents for.
+public sealed record TimelineDocument(DateTime Start, DateTime End, string Title, string DocName, string Domain);
 
 // One row of the day legend: a tag (IsTag) or one of its processes, indented beneath it
 public class LegendItem

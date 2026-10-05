@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using Chronoscope.Controls;
 
 namespace Chronoscope.Views;
 
@@ -44,12 +45,22 @@ public partial class DayView : UserControl
             return;
         }
 
+        var position = e.GetPosition(Timeline);
+
+        // The document open at the pointer. Rows are in time order, so the last one started by
+        // then is it; that also covers the short gaps the merge absorbed, which belong to the
+        // row before them.
+        var time = Timeline.TimeAt(position.X);
+        var document = hovered.Documents.LastOrDefault(d => d.Start <= time);
+
         TooltipName.Text = hovered.Process;
+        ShowLine(TooltipTitleLine, TooltipTitle, document?.Title);
+        ShowLine(TooltipDocNameLine, TooltipDocName, document?.DocName);
+        ShowLine(TooltipDomainLine, TooltipDomain, document?.Domain);
         TooltipRange.Text = $"{hovered.Start:HH:mm} - {hovered.End:HH:mm}  ({(hovered.End - hovered.Start):h\\:mm})";
         TooltipDot.Fill = new ImmutableSolidColorBrush(hovered.Color);
         TimelineTooltip.IsVisible = true;
 
-        var position = e.GetPosition(Timeline);
         TimelineTooltip.Measure(Size.Infinity);
         var card = TimelineTooltip.DesiredSize;
 
@@ -58,5 +69,17 @@ public partial class DayView : UserControl
 
         Canvas.SetLeft(TimelineTooltip, Math.Max(0, x));
         Canvas.SetTop(TimelineTooltip, Math.Max(-card.Height - 6, position.Y - card.Height - 10));
+    }
+
+    // One optional line of the hover card: hidden when empty, and scrolled from the start again
+    // only when the text actually changes - every pointer move lands here, and restarting on
+    // each one would keep a long title pinned at its beginning
+    private static void ShowLine(Marquee line, TextBlock text, string? value)
+    {
+        line.IsVisible = !string.IsNullOrEmpty(value);
+        if (text.Text == value) return;
+
+        text.Text = value;
+        line.Restart();
     }
 }

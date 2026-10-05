@@ -351,35 +351,43 @@ public partial class DayViewModel : ViewModelBase, IKeepAlive
         // Everything overlapping the window, clamped to it. The floor is tested against the
         // unclamped row, and against the same HeatmapAggregator.MinTrackedSeconds the pie and the
         // heatmap use, so all three agree on which activities exist.
-        var slices = data
+        var rows = data
             .Where(a => a.End > windowStart && a.Start < windowEnd)
             .Where(a => a.DurationSeconds > HeatmapAggregator.MinTrackedSeconds)
-            .Select(a => new TimelineSlice(
+            .Select(a => (
                 a.Process,
                 a.Tag,
-                a.Start < windowStart ? windowStart : a.Start,
-                a.End > windowEnd ? windowEnd : a.End,
-                Color.Parse(ColorForProcess(a.Process, a.Tag))))
-            .Where(s => s.End > s.Start)
-            .OrderBy(s => s.Start)
-            .ToList();
+                Start: a.Start < windowStart ? windowStart : a.Start,
+                End: a.End > windowEnd ? windowEnd : a.End,
+                Title: WindowTitleWithoutApp(a.Name, a.OriginalProcess),
+                a.DocName,
+                a.Domain))
+            .Where(r => r.End > r.Start)
+            .OrderBy(r => r.Start);
 
-        // Merge adjacent same-process slices. ManicTime splits a sitting on every window title
+        // Merge adjacent same-process rows. ManicTime splits a sitting on every window title
         // change, so this collapses one session back into one segment. Applied AFTER the filter,
-        // so the set of activities shown stays the same as the pie's.
+        // so the set of activities shown stays the same as the pie's. Each row is kept as one of
+        // the block's documents; `with` copies the list reference, so appending to the list
+        // grows the merged block's documents.
         var merged = new List<TimelineSlice>();
-        foreach (var slice in slices)
+        List<TimelineDocument> documents = [];
+        foreach (var row in rows)
         {
+            var document = new TimelineDocument(row.Start, row.End, row.Title, row.DocName, row.Domain);
             if (merged.Count > 0)
             {
                 var last = merged[^1];
-                if (last.Process == slice.Process && (slice.Start - last.End).TotalSeconds <= GapAbsorbSeconds)
+                if (last.Process == row.Process && (row.Start - last.End).TotalSeconds <= GapAbsorbSeconds)
                 {
-                    merged[^1] = last with { End = slice.End > last.End ? slice.End : last.End };
+                    merged[^1] = last with { End = row.End > last.End ? row.End : last.End };
+                    documents.Add(document);
                     continue;
                 }
             }
-            merged.Add(slice);
+            documents = [document];
+            merged.Add(new TimelineSlice(row.Process, row.Tag, row.Start, row.End,
+                Color.Parse(ColorForProcess(row.Process, row.Tag)), documents));
         }
 
         TimelineWindowStart = windowStart;
@@ -387,6 +395,32 @@ public partial class DayViewModel : ViewModelBase, IKeepAlive
         TimelineSlices = merged;
 
         Debug.WriteLine($"Timeline segments: {merged.Count}");
+    }
+
+    private static readonly string[] TitleSeparators = [" — ", " – ", " - "];
+
+    // Most apps end their window title with their own name ("Monkeytype — Mozilla Firefox",
+    // "Inbox - Mozilla Thunderbird"), which the hover card already shows. Only that last part is
+    // dropped, and only when it names the app, so a title that merely contains a dash survives.
+    // A title that is nothing but the app's name (Firefox on a new tab) has nothing to add, so
+    // it becomes empty.
+    private static string WindowTitleWithoutApp(string title, string app)
+    {
+        if (string.IsNullOrEmpty(app)) return title;
+
+        int cut = -1, separatorLength = 0;
+        foreach (var separator in TitleSeparators)
+        {
+            int at = title.LastIndexOf(separator, StringComparison.Ordinal);
+            if (at > cut) (cut, separatorLength) = (at, separator.Length);
+        }
+
+        if (cut < 0)
+            return title.Contains(app, StringComparison.OrdinalIgnoreCase) ? "" : title;
+
+        return title.AsSpan(cut + separatorLength).Contains(app, StringComparison.OrdinalIgnoreCase)
+            ? title[..cut].TrimEnd()
+            : title;
     }
 
     // A process the pie never colored (only possible in the previous-day part of the rolling
