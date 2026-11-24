@@ -30,9 +30,17 @@ public static class HeatmapAggregator
     // midnight counting wholly toward its Start day, which is how the pie groups a day.
     public static List<TagDailyTotals> AggregateTagDays(IEnumerable<AppsTagsTable> data, int? year = null)
     {
+        var (from, to) = YearRange(year);
+        return AggregateTagDays(data, from, to);
+    }
+
+    // The same, for any span of days: from and to are both inclusive and compared against the
+    // activity's Start date, so the midnight rule above holds at the edges of the span too.
+    public static List<TagDailyTotals> AggregateTagDays(IEnumerable<AppsTagsTable> data, DateTime from, DateTime to)
+    {
         return data
             .Where(a => a.DurationSeconds > MinTrackedSeconds)
-            .Where(a => year is null || a.Start.Year == year)
+            .Where(a => a.Start.Date >= from.Date && a.Start.Date <= to.Date)
             .Where(a => !string.IsNullOrWhiteSpace(a.Tag))
             .GroupBy(a => a.Tag)
             .Select(g => new TagDailyTotals
@@ -61,9 +69,16 @@ public static class HeatmapAggregator
     // "when was I active".
     public static List<TagWeekHourTotals> AggregateTagWeekHours(IEnumerable<AppsTagsTable> data, int? year = null)
     {
+        var (from, to) = YearRange(year);
+        return AggregateTagWeekHours(data, from, to);
+    }
+
+    // The same, for any span of days - selected exactly like AggregateTagDays(data, from, to)
+    public static List<TagWeekHourTotals> AggregateTagWeekHours(IEnumerable<AppsTagsTable> data, DateTime from, DateTime to)
+    {
         return data
             .Where(a => a.DurationSeconds > MinTrackedSeconds)
-            .Where(a => year is null || a.Start.Year == year)
+            .Where(a => a.Start.Date >= from.Date && a.Start.Date <= to.Date)
             .Where(a => !string.IsNullOrWhiteSpace(a.Tag))
             .GroupBy(a => a.Tag)
             .Select(g =>
@@ -81,6 +96,12 @@ public static class HeatmapAggregator
             .OrderByDescending(t => t.TotalSeconds)
             .ToList();
     }
+
+    // A calendar year as an inclusive span of days, or every day there is for null
+    private static (DateTime From, DateTime To) YearRange(int? year) =>
+        year is int y
+            ? (new DateTime(y, 1, 1), new DateTime(y, 12, 31))
+            : (DateTime.MinValue, DateTime.MaxValue.Date);
 
     // Walks the activity hour boundary by hour boundary, adding each slice to the cell for the
     // weekday and hour that slice actually falls in. Rolling past hour 23 lands on the next day's

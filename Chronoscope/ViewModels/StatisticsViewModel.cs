@@ -16,7 +16,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Chronoscope.ViewModels;
 
-// A heatmap per tag for one year: the GitHub-style Year Overview and the weekday x hour Active
+// A heatmap per tag for one year - a calendar year, or by default the past 365 days: the GitHub-style Year Overview and the weekday x hour Active
 // Hours grid. Ported from the MAUI StatisticsPage.
 public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
 {
@@ -58,7 +58,7 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
     [ObservableProperty]
     public partial bool IsBusy { get; private set; }
 
-    private (IReadOnlyList<AppsTagsTable>? Apps, int Year, int Colors) _shown;
+    private (IReadOnlyList<AppsTagsTable>? Apps, Period? Period, int Colors) _shown;
 
     private bool _isRefreshing;
     private async Task RefreshAsync(bool forceReload = false)
@@ -72,14 +72,16 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
             // ManicTime export - only the refresh button pays for one.
             var apps = await _dataService.GetMergedDataAsync(forceReload);
 
-            // Same data, year and colours as what is on screen: keep it. Opening the page then
-            // costs nothing, which is the point of keeping it alive.
-            var shown = (apps, _year, _settingsService.TagColorsVersion);
+            // Same data, period and colours as what is on screen: keep it. Opening the page then
+            // costs nothing, which is the point of keeping it alive. The period is compared by its
+            // dates, so the rolling year moves on by itself when the page is opened on a new day.
+            var period = CurrentPeriod();
+            var shown = (apps, period, _settingsService.TagColorsVersion);
             if (!forceReload && shown == _shown)
                 return;
 
-            await LoadTagStatisticsAsync(apps, _year);
-            _shown = (apps, _year, _settingsService.TagColorsVersion); // building may colour new tags
+            await LoadTagStatisticsAsync(apps, period);
+            _shown = (apps, period, _settingsService.TagColorsVersion); // building may colour new tags
         }
         catch (InvalidOperationException ex)
         {
@@ -101,12 +103,39 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
     // Control Buttons
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    private int _year = DateTime.Today.Year;
+    // The span of days the page shows: a calendar year, or the 365 days up to and including today.
+    // Both ends are inclusive.
+    private sealed record Period(DateTime From, DateTime To, string Label);
+
+    // null is the rolling "1 Year" view, the default. It sits one step after the current calendar
+    // year, so the arrows run ... 2025, 2026, 1 Year.
+    private int? _year;
+
+    private Period CurrentPeriod()
+    {
+        if (_year is int year)
+            return new Period(new DateTime(year, 1, 1), new DateTime(year, 12, 31), year.ToString());
+
+        var today = DateTime.Today;
+        return new Period(today.AddDays(-364), today, RollingLabel);
+    }
+
+    private const string RollingLabel = "1 Year";
+
     private async Task ChangeYearAsync(int deltaYears)
     {
-        // Nothing can be tracked in a year that has not started yet
-        int next = _year + deltaYears;
-        if (next > DateTime.Today.Year) return;
+        int thisYear = DateTime.Today.Year;
+
+        // Going back from the rolling view lands on this calendar year; going forward past this
+        // calendar year lands on the rolling view, and nothing comes after it
+        int? next = _year switch
+        {
+            null when deltaYears < 0 => thisYear + 1 + deltaYears,
+            null => (int?)null,
+            int y when y + deltaYears > thisYear => null,
+            int y => y + deltaYears
+        };
+        if (next == _year) return;
 
         _year = next;
         await RefreshAsync();
@@ -123,7 +152,7 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     [ObservableProperty]
-    public partial string DisplayYear { get; private set; } = DateTime.Today.Year.ToString();
+    public partial string DisplayYear { get; private set; } = RollingLabel;
 
     [ObservableProperty]
     public partial TagStatistics[] TagStats { get; private set; } = [];
@@ -147,16 +176,15 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
     // One row per tag: the title, then two grids side by side. Year Overview answers how much and
     // on which days; Active Hours answers when during the day. Both cover the same year and are
     // built from the same set of activities, so they can be read against each other.
-    private async Task LoadTagStatisticsAsync(IReadOnlyList<AppsTagsTable> data, int year)
+    private async Task LoadTagStatisticsAsync(IReadOnlyList<AppsTagsTable> data, Period period)
     {
-        DisplayYear = year.ToString();
+        DisplayYear = period.Label;
 
-        // The year grid's origin is the Monday of the week containing Jan 1, so every column is a
-        // whole Mon-Sun week. The (+6 % 7) shift turns DayOfWeek's Sunday-first numbering into
-        // Monday = 0, which is the row order both grids' Y axes assume.
-        var jan1 = new DateTime(year, 1, 1);
-        var firstCell = jan1.AddDays(-(((int)jan1.DayOfWeek + 6) % 7));
-        int weekCount = ((new DateTime(year, 12, 31) - firstCell).Days / 7) + 1;
+        // The year grid's origin is the Monday of the week containing the period's first day, so
+        // every column is a whole Mon-Sun week. The (+6 % 7) shift turns DayOfWeek's Sunday-first
+        // numbering into Monday = 0, which is the row order both grids' Y axes assume.
+        var firstCell = period.From.AddDays(-(((int)period.From.DayOfWeek + 6) % 7));
+        int weekCount = ((period.To - firstCell).Days / 7) + 1;
 
         // Daily totals per tag, biggest tag first. Shared with the Obsidian vault export so the
         // two can never disagree - see HeatmapAggregator for the floor and the midnight rule.
@@ -168,16 +196,18 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
         // Both are pure number crunching over the whole dataset, so they run off the UI thread;
         // the dataset is never mutated once loaded (a reload replaces it), so that is safe.
         var (perTag, perTagHours) = await Task.Run(() => (
-            HeatmapAggregator.AggregateTagDays(data, year),
-            HeatmapAggregator.AggregateTagWeekHours(data, year).ToDictionary(t => t.Tag)));
+            HeatmapAggregator.AggregateTagDays(data, period.From, period.To),
+            HeatmapAggregator.AggregateTagWeekHours(data, period.From, period.To).ToDictionary(t => t.Tag)));
 
-        _built = new BuiltYear(year, firstCell, weekCount, perTag, perTagHours);
+        _built = new BuiltYear(period, firstCell, weekCount, perTag, perTagHours);
 
         if (perTag.Count == 0)
         {
             TagStats = [];
             HiddenTags = [];
-            EmptyMessage = $"No time tracked in {year}.";
+            EmptyMessage = _year is null
+                ? "No time tracked in the past 365 days."
+                : $"No time tracked in {period.Label}.";
             IsEmpty = true;
             return;
         }
@@ -194,7 +224,7 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
     // would have disposed its series on the way - the page stacks them by DisplayIndex instead,
     // and a hidden card is only collapsed.
 
-    private sealed record BuiltYear(int Year, DateTime FirstCell, int WeekCount,
+    private sealed record BuiltYear(Period Period, DateTime FirstCell, int WeekCount,
         List<TagDailyTotals> PerTag, Dictionary<string, TagWeekHourTotals> PerTagHours);
 
     private BuiltYear? _built;
@@ -259,7 +289,7 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
 
         card.Panels =
         [
-            BuildYearPanel(tag, ramp, _built.Year, firstCell, weekCount),
+            BuildYearPanel(tag, ramp, _built.Period, firstCell, weekCount),
             BuildActiveHoursPanel(perTagHours[tag.Tag], ramp)
         ];
     }
@@ -348,17 +378,17 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
     // Year Overview
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    // The GitHub contributions grid: X = week column, Y = weekday, one cell per day of the year.
+    // The GitHub contributions grid: X = week column, Y = weekday, one cell per day of the period.
     private HeatmapPanel BuildYearPanel(TagDailyTotals tag, string[] ramp,
-        int year, DateTime firstCell, int weekCount)
+        Period period, DateTime firstCell, int weekCount)
     {
         double[] thresholds = HeatmapAggregator.BucketThresholds(tag.Days.Values);
 
-        // One point per day of the year, zero days included so they draw in the empty shade.
-        // Days of the leading and trailing partial weeks that fall outside the year get no
+        // One point per day of the period, zero days included so they draw in the empty shade.
+        // Days of the leading and trailing partial weeks that fall outside the period get no
         // point at all, so those corner cells stay blank - the same as GitHub.
         var cells = new List<WeightedPoint>(366);
-        for (var day = new DateTime(year, 1, 1); day.Year == year; day = day.AddDays(1))
+        for (var day = period.From; day <= period.To; day = day.AddDays(1))
         {
             int offset = (day - firstCell).Days;
             tag.Days.TryGetValue(day, out double seconds);
@@ -390,7 +420,7 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
         {
             Caption = "Year Overview",
             Series = [series],
-            XAxes = [BuildMonthAxis(firstCell, weekCount, year)],
+            XAxes = [BuildMonthAxis(firstCell, weekCount, period)],
             YAxes = [BuildWeekdayAxis()],
             DrawMargin = new Margin((float)WeekdayGutter, (float)TopGutter, (float)ChartEdge, (float)ChartEdge),
             ChartWidth = WeekdayGutter + (weekCount * CellSize) + ChartEdge,
@@ -496,23 +526,29 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
     // -0.5 also sidesteps the quirk the timeline documents in MainPage: assigning an axis's own
     // default (0) raises no change notification, and the axis then auto-scales instead.
 
-    private static Axis BuildMonthAxis(DateTime firstCell, int weekCount, int year)
+    private static Axis BuildMonthAxis(DateTime firstCell, int weekCount, Period period)
     {
         // A label on the first week column each month reaches into. A column is named after the
         // month its Sunday falls in, so a week split across two months labels the one it mostly
         // belongs to and January never lands on the previous year's stub column. The final column
-        // can reach into next January, which would print a second "Jan" at the far right, so a
-        // column whose Sunday has already left the year gets no label.
+        // can reach past the period (into next January, or past today), which would print a
+        // stray month at the far right, so a column whose Sunday has left the period gets no label.
         var separators = new List<double>();
         int lastMonth = 0;
         for (int week = 0; week < weekCount; week++)
         {
             var sunday = firstCell.AddDays((week * 7) + 6);
-            if (sunday.Year != year || sunday.Month == lastMonth) continue;
+            if (sunday > period.To || sunday.Month == lastMonth) continue;
 
             separators.Add(week);
             lastMonth = sunday.Month;
         }
+
+        // The rolling year can start in the last days of a month, leaving that month a column or
+        // two before the next one is named; both labels would then print over each other. A
+        // calendar year never trips this, since January always has four columns or more.
+        if (separators.Count > 1 && separators[1] - separators[0] < 3)
+            separators.RemoveAt(0);
 
         return new Axis
         {
