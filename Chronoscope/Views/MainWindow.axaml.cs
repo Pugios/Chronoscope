@@ -24,6 +24,7 @@ public partial class MainWindow : FAAppWindow
         // including over buttons, grids and charts that would otherwise swallow the press
         AddHandler(PointerPressedEvent, OnThumbButtonPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerPressedEvent, OnTitleBarPressed, RoutingStrategies.Tunnel);
+        PageHost.AddHandler(PointerWheelChangedEvent, OnPageWheel, RoutingStrategies.Bubble);
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainWindowViewModel vm)
@@ -45,11 +46,61 @@ public partial class MainWindow : FAAppWindow
             : (e.InvokedItemContainer?.Tag as string) switch
             {
                 "Statistics" => AppSection.Statistics,
+                "Trend" => AppSection.Trend,
                 "Tags" => AppSection.Tags,
                 _ => AppSection.Day
             };
 
         await ViewModel.NavigateToSectionAsync(section);
+
+        // The pane highlights the clicked item at once. If leaving was cancelled (unsaved changes,
+        // Cancel) the section never changed, so put the highlight back where the page still is.
+        SyncSelection();
+    }
+
+    private void SyncSelection()
+    {
+        if (ViewModel is null) return;
+
+        NavView.SelectedItem = ViewModel.Section switch
+        {
+            AppSection.Statistics => StatisticsItem,
+            AppSection.Trend => TrendItem,
+            AppSection.Tags => TagsItem,
+            AppSection.Settings => NavView.SettingsItem,
+            _ => DayItem
+        };
+    }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Closing With Unsaved Changes
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Closing is held while the open page is asked (see MainWindowViewModel.ConfirmCloseAsync);
+    // once it agrees, the window closes for real, this time without asking again.
+
+    private bool _closeConfirmed;
+
+    protected override async void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+        if (_closeConfirmed || e.Cancel || ViewModel is null) return;
+
+        // The question is async and the close cannot wait for it: stop this close, ask, and
+        // close again if the answer allows it
+        e.Cancel = true;
+        try
+        {
+            if (!await ViewModel.ConfirmCloseAsync()) return;
+        }
+        catch (Exception)
+        {
+            // A failed save must not trap the user in the app; the save reported nothing, so
+            // keep the window open and let them try again
+            return;
+        }
+
+        _closeConfirmed = true;
+        Close();
     }
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -86,6 +137,48 @@ public partial class MainWindow : FAAppWindow
 
         view.IsVisible = true;
         FadeIn(view);
+    }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Scrolling from the Page Margins
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Every page keeps a margin around its content, and that margin lies outside the page's own
+    // ScrollViewer - so the wheel did nothing between the navigation pane and the content, or
+    // beside the header. Here, a wheel turn that reached the page host without anything having
+    // scrolled scrolls the page instead. Bubbling and unhandled only: a table or a chart under the
+    // pointer still scrolls itself first, as it should.
+
+    // Pixels per wheel notch - what Avalonia's own ScrollViewer moves, so both feel the same
+    const double WheelStep = 50;
+
+    private void OnPageWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (e.Handled) return;
+
+        var page = PageHost.Children.FirstOrDefault(c => c.IsVisible);
+        if (page is null || PageScroller(page) is not { } scroller) return;
+
+        var offset = scroller.Offset;
+        scroller.Offset = new Vector(offset.X - (e.Delta.X * WheelStep), offset.Y - (e.Delta.Y * WheelStep));
+        e.Handled = true;
+    }
+
+    // The page's main scroller: the outermost visible ScrollViewer that has something to scroll.
+    // Breadth first, so a table's or a chart's own scroller nested inside it never wins.
+    private static ScrollViewer? PageScroller(Visual page)
+    {
+        var queue = new Queue<Visual>([page]);
+        while (queue.Count > 0)
+        {
+            var visual = queue.Dequeue();
+            if (visual is ScrollViewer { IsVisible: true } sv
+                && (sv.Extent.Height > sv.Viewport.Height || sv.Extent.Width > sv.Viewport.Width))
+                return sv;
+
+            foreach (var child in visual.GetVisualChildren())
+                queue.Enqueue(child);
+        }
+        return null;
     }
 
     private static readonly Animation PageFadeIn = new()
@@ -176,14 +269,7 @@ public partial class MainWindow : FAAppWindow
         if (e.PropertyName == nameof(MainWindowViewModel.CurrentPage))
             ShowPage(ViewModel?.CurrentPage);
 
-        if (e.PropertyName != nameof(MainWindowViewModel.Section) || ViewModel is null) return;
-
-        NavView.SelectedItem = ViewModel.Section switch
-        {
-            AppSection.Statistics => StatisticsItem,
-            AppSection.Tags => TagsItem,
-            AppSection.Settings => NavView.SettingsItem,
-            _ => DayItem
-        };
+        if (e.PropertyName == nameof(MainWindowViewModel.Section))
+            SyncSelection();
     }
 }

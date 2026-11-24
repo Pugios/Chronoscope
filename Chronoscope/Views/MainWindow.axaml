@@ -26,6 +26,7 @@
     <ui:FANavigationView.MenuItems>
       <ui:FANavigationViewItem x:Name="DayItem" Content="Day" Tag="Day" IconSource="Clock" />
       <ui:FANavigationViewItem x:Name="StatisticsItem" Content="Statistics" Tag="Statistics" IconSource="Calendar" />
+      <ui:FANavigationViewItem x:Name="TrendItem" Content="Trend" Tag="Trend" IconSource="Sort" />
       <ui:FANavigationViewItem x:Name="TagsItem" Content="Tags" Tag="Tags" IconSource="Tag" />
     </ui:FANavigationView.MenuItems>
 
@@ -43,6 +44,8 @@
 
     <!-- The pages. Filled from code (ShowPage): the Day and Statistics views are kept here once
          built and only hidden while another page is shown, the others come and go per visit. -->
-    <Panel x:Name="PageHost" />
+    <!-- Transparent, not empty: the page margins must be hit-testable for the wheel to reach
+         OnPageWheel from there (an unset background lets the pointer fall straight through) -->
+    <Panel x:Name="PageHost" Background="Transparent" />
   </ui:FANavigationView>
 </wnd:FAAppWindow>

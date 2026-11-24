@@ -4,6 +4,9 @@ using FluentAvalonia.UI.Controls;
 
 namespace Chronoscope;
 
+// Which button of an AskAsync dialog was chosen
+public enum DialogChoice { Primary, Secondary, Close }
+
 // Everything a view model needs from the window it is shown in: the MAUI build got alerts and
 // pickers from the page itself (DisplayAlertAsync, FilePicker, FolderPicker), a view model has
 // no page, so they are routed through here instead.
@@ -40,6 +43,45 @@ public class DialogService
         try
         {
             await dialog.ShowAsync(_host);
+        }
+        finally
+        {
+            _alertGate.Release();
+        }
+    }
+
+    // A question with up to three answers, e.g. Save / Don't save / Cancel. The close button is
+    // also what Escape and an outside click give, so it should always be the harmless answer.
+    // Without a window to ask in, the answer is the close button.
+    public async Task<DialogChoice> AskAsync(string title, string message,
+        string primary, string? secondary, string close)
+    {
+        if (_host is null) return DialogChoice.Close;
+
+        var dialog = new FAContentDialog
+        {
+            Title = title,
+            Content = new TextBlock
+            {
+                Text = message,
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                MaxWidth = 460
+            },
+            PrimaryButtonText = primary,
+            SecondaryButtonText = secondary ?? "",
+            CloseButtonText = close,
+            DefaultButton = FAContentDialogButton.Primary
+        };
+
+        await _alertGate.WaitAsync();
+        try
+        {
+            return await dialog.ShowAsync(_host) switch
+            {
+                FAContentDialogResult.Primary => DialogChoice.Primary,
+                FAContentDialogResult.Secondary => DialogChoice.Secondary,
+                _ => DialogChoice.Close
+            };
         }
         finally
         {

@@ -248,7 +248,7 @@ public class SettingsService
     // Tag Colors
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    // Bumped on every colour change, so a kept page can tell whether what it drew is still current
+    // Bumped on every colour change - tag or group, so a kept page can tell whether what it drew is still current
     public int TagColorsVersion { get; private set; }
 
     // The same moment, for whoever has to act on it rather than poll: the vault export carries
@@ -325,4 +325,39 @@ public class SettingsService
         if (_settings.TagColors.Remove(tag)) OnTagColorsChanged();
         RequestSave();
     }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Group Colors
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // The same rules as the tag colours, in a dictionary of their own. They share
+    // TagColorsVersion, so a page drawn with either kind notices a change to either.
+
+    public IReadOnlyDictionary<string, string> GroupColors => _settings.GroupColors;
+
+    public string GetGroupColor(string group)
+    {
+        if (_settings.GroupColors.TryGetValue(group, out string? color))
+            return color;
+
+        color = $"#{Random.Shared.Next(256):X2}{Random.Shared.Next(256):X2}{Random.Shared.Next(256):X2}";
+        _settings.GroupColors[group] = color;
+        OnTagColorsChanged();
+        RequestSave();
+        return color;
+    }
+
+    public void SetGroupColor(string group, string color)
+    {
+        if (_settings.GroupColors.TryGetValue(group, out var old) && old == color) return;
+        _settings.GroupColors[group] = color;
+        OnTagColorsChanged();
+        RequestSave();
+    }
+
+    public void DeleteGroupColor(string group)
+    {
+        if (_settings.GroupColors.Remove(group)) OnTagColorsChanged();
+        RequestSave();
+    }
+
 }

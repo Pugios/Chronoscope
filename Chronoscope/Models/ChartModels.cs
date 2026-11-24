@@ -22,14 +22,38 @@ public sealed record TimelineSlice(string Process, string Tag, DateTime Start, D
 // Domain are empty for an app ManicTime tracks no documents for.
 public sealed record TimelineDocument(DateTime Start, DateTime End, string Title, string DocName, string Domain);
 
-// One row of the day legend: a tag (IsTag) or one of its processes, indented beneath it
+// The three levels of the day legend
+public enum LegendKind { Group, Tag, Process }
+
+// One row of the day legend: a tag group, a tag, or a process, each indented beneath the one it
+// belongs to. The rows of a group share its tint (Background), so a group reads as one block;
+// the first and last of those rows round the block's corners.
 public class LegendItem
 {
     public string Name { get; init; } = "";
     public string Duration { get; init; } = "";
     public Color Color { get; init; }
-    public bool IsTag { get; init; }
-    public Thickness Indent => IsTag ? new Thickness(0) : new Thickness(18, 0, 0, 0);
+    public LegendKind Kind { get; init; }
+    public bool InGroup { get; init; }           // a group's row, or one of its tags or their processes
+    public IBrush? Background { get; init; }     // the group's tint, null outside groups
+    public CornerRadius Corners { get; init; }
+
+    // Where the panel may break the legend into a new column, see LegendColumnsPanel
+    public bool StartsBlock => Kind == LegendKind.Group || (Kind == LegendKind.Tag && !InGroup);
+    public bool StartsTag => Kind != LegendKind.Process;
+
+    // Bold for whatever leads a block: a group, or a tag standing on its own
+    public bool IsHeading => StartsBlock;
+    public bool IsProcess => Kind == LegendKind.Process;
+    public bool IsGroup => Kind == LegendKind.Group;   // carries the "Group" badge
+
+    public Thickness Indent => (Kind, InGroup) switch
+    {
+        (LegendKind.Tag, true) => new Thickness(14, 0, 0, 0),
+        (LegendKind.Process, true) => new Thickness(32, 0, 0, 0),
+        (LegendKind.Process, false) => new Thickness(18, 0, 0, 0),
+        _ => new Thickness(0)
+    };
 }
 
 // One tag's daily totals in seconds, straight out of HeatmapAggregator and before any display
@@ -78,7 +102,10 @@ public class HeatmapPanel
 // draws empty for a moment - every graph on the page would blink on each move.
 public partial class TagStatistics : ObservableObject
 {
+    // The card's key: a tag's name, or a group's TagGrouping.GroupKey. Title is what is shown.
     public string Tag { get; init; } = "";
+    public string Title { get; init; } = "";
+    public bool IsGroup { get; init; }
     public Color TagColor { get; init; } = Colors.Transparent; // the dot beside the title
     public string TotalLabel { get; init; } = "";              // "412h over 231 days"
 
@@ -96,7 +123,9 @@ public partial class TagStatistics : ObservableObject
 // A tag hidden from the Statistics page, listed at the bottom so it can be brought back
 public class HiddenTag
 {
-    public string Tag { get; init; } = "";
+    public string Tag { get; init; } = "";          // the card's key, as in TagStatistics
+    public string Title { get; init; } = "";
+    public bool IsGroup { get; init; }
     public Color TagColor { get; init; } = Colors.Transparent;
     public string TotalLabel { get; init; } = "";
 }

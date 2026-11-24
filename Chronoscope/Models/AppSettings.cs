@@ -5,6 +5,10 @@ namespace Chronoscope;
 public class AppSettings
 {
     public Dictionary<string, string> TagColors { get; set; } = new();
+
+    // One colour per tag group, kept apart from TagColors so a group and a tag may share a name
+    public Dictionary<string, string> GroupColors { get; set; } = new();
+
     public string MtcExePath { get; set; } = @"C:\Program Files\ManicTime\mtc.exe";
 
     // How often the day view reloads from ManicTime while it is on screen, in minutes. A file

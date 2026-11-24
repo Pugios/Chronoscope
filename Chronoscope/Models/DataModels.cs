@@ -14,6 +14,14 @@ public class TagsTable
     public string Tag { get; set; } = "";
 }
 
+// Tag -> Group, as stored in tag-groups.csv beside tags.csv. One row per grouped tag; a tag
+// without a row is ungrouped. See TagGrouping.
+public class TagGroup
+{
+    public string Tag { get; set; } = "";
+    public string Group { get; set; } = "";
+}
+
 // ManicTime/Applications, straight out of mtc.exe
 public class AppsTable
 {

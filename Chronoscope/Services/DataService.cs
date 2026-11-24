@@ -23,9 +23,16 @@ public class DataService
     private string TagsPath => _settingsService.TagsCsvPath;
     private string ExplorerPath => _settingsService.ExplorerRulesCsvPath;
 
+    // The tag groups always sit beside tags.csv rather than having a path of their own: they only
+    // mean something together with the tags they group, so moving tags.csv to a synced folder in
+    // Settings takes the groups with it.
+    private string GroupsPath => Path.Combine(Path.GetDirectoryName(TagsPath) ?? FileSystem.AppDataDirectory, GroupsFileName);
+    public const string GroupsFileName = "tag-groups.csv";
+
     // The header each file is created with, and what a file picked in Settings must carry
     public const string TagsHeader = "Process,Tag";
     public const string ExplorerHeader = "Process,Tag,Column,MatchType,Pattern,Order";
+    public const string GroupsHeader = "Tag,Group";
     private readonly SettingsService _settingsService;
 
     public DataService(SettingsService settingsService)
@@ -63,6 +70,19 @@ public class DataService
             .Distinct()
             .OrderBy(t => t)
             .ToArray();
+
+    // Tag -> group, from tag-groups.csv. Read with the rest of the tagging files on a reload, and
+    // replaced in place by ReplaceTagGroupsAsync - editing groups never needs a ManicTime export,
+    // because no row's tag changes; the pages re-key the rows themselves (see TagGrouping).
+    private Dictionary<string, string> _groupByTag = new();
+    public IReadOnlyDictionary<string, string> GroupByTag => _groupByTag;
+
+    // Bumped whenever the groups change, so a kept page can tell that what it drew by group is stale
+    public int GroupsVersion { get; private set; }
+
+    // The same moment, for whoever has to act on it rather than poll: the vault export carries
+    // every group's days, and a group edit reloads no data, so DataReloaded would never come
+    public event Action? GroupsChanged;
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // Freshness
@@ -107,8 +127,9 @@ public class DataService
             // intermediate table - tagged, but with no Explorer rules applied. Being non-empty,
             // it then satisfied the check above and was served as finished data from then on.
 
-            // Read Tags
+            // Read Tags, and the groups they belong to
             List<TagsTable> tags = await GetTagTableAsync();
+            Dictionary<string, string> groups = await GetTagGroupsAsync();
 
             // Read Time Table from ManicTime
             List<AppsTable> apps = await ExportTimeTableAsync();
@@ -128,6 +149,7 @@ public class DataService
             List<AppsTagsTable> reduced = ApplyRulesAndReduce(appsTagsDocuments, explorerRules);
 
             _cachedTags = tags;
+            SetGroups(groups);
             _cachedAppsTagsDocuments = appsTagsDocuments;
             _explorerRules = explorerRules;
             _cachedAppsTags = reduced;
@@ -159,6 +181,70 @@ public class DataService
         using var reader = new StreamReader(TagsPath);
         using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
         return csv.GetRecords<TagsTable>().ToList();
+    }
+
+    // 1b. Read the tag groups. First row wins for a tag listed twice in a hand-edited file, the
+    // same rule tags.csv follows; a row with an empty group is no group at all.
+    private async Task<Dictionary<string, string>> GetTagGroupsAsync()
+    {
+        string path = GroupsPath;
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        if (!File.Exists(path))
+        {
+            await File.WriteAllTextAsync(path, GroupsHeader + Environment.NewLine);
+        }
+
+        using var reader = new StreamReader(path);
+        using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+        var groups = new Dictionary<string, string>();
+        foreach (var row in csv.GetRecords<TagGroup>())
+        {
+            if (!string.IsNullOrWhiteSpace(row.Tag) && !string.IsNullOrWhiteSpace(row.Group))
+                groups.TryAdd(row.Tag.Trim(), row.Group.Trim());
+        }
+        return groups;
+    }
+
+    private void SetGroups(Dictionary<string, string> groups)
+    {
+        bool same = groups.Count == _groupByTag.Count
+                    && groups.All(kv => _groupByTag.TryGetValue(kv.Key, out var g) && g == kv.Value);
+        _groupByTag = groups;
+        if (same) return;
+
+        GroupsVersion++;
+        GroupsChanged?.Invoke();
+    }
+
+    // Replace every tag's group at once - what the Tags page saves. Written beside the target and
+    // swapped in, like settings.json, so a failed write leaves the old groups intact.
+    public async Task ReplaceTagGroupsAsync(IReadOnlyDictionary<string, string> groupByTag)
+    {
+        await _dataGate.WaitAsync();
+        try
+        {
+            var groups = groupByTag
+                .Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && !string.IsNullOrWhiteSpace(kv.Value))
+                .ToDictionary(kv => kv.Key.Trim(), kv => kv.Value.Trim());
+
+            string path = GroupsPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            string tempPath = path + ".tmp";
+            using (var writer = new StreamWriter(tempPath))
+            using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+            {
+                await csv.WriteRecordsAsync(groups
+                    .OrderBy(kv => kv.Value).ThenBy(kv => kv.Key)
+                    .Select(kv => new TagGroup { Tag = kv.Key, Group = kv.Value }));
+            }
+            File.Move(tempPath, path, overwrite: true);
+
+            SetGroups(groups);
+        }
+        finally
+        {
+            _dataGate.Release();
+        }
     }
 
     // 2. Read Time Table from ManicTime
@@ -342,6 +428,7 @@ public class DataService
         {
             _cachedTags = new();
             _explorerRules = new();
+            SetGroups(new());   // they sit beside tags.csv, which just moved
             InvalidateDerived();
         }
         finally

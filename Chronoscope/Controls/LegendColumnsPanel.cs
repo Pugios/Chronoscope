@@ -5,19 +5,27 @@ using Avalonia.Controls.Presenters;
 namespace Chronoscope.Controls;
 
 // The day legend's layout: columns filled top to bottom, growing to the right, like a vertical
-// WrapPanel - except that it breaks between TAGS rather than anywhere. A tag moves to the next
-// column whole when its processes would not fit beneath it, so no column ends on a tag header
-// cut off from its processes. A tag too long for any column cannot be kept together, so that one
-// simply flows on into the next column (but never leaves its header alone at the bottom).
+// WrapPanel - except that it breaks between BLOCKS rather than anywhere.
+//
+// Two levels of block, see LegendItem:
+//  - a top-level block is a tag group (its name, its tags, their processes) or a tag standing on
+//    its own (the tag and its processes). One moves to the next column whole when it would not
+//    fit beneath what is there, so a group stays together in one column whenever it can.
+//  - a group too tall for any column has to split, and then it splits between its tags: a tag
+//    moves on whole with its processes where it fits, as a lone tag always did.
+// Whatever cannot be kept together still never leaves a heading alone at the bottom of a column:
+// a group's name keeps its first tag, a tag keeps its first process.
 public class LegendColumnsPanel : Panel
 {
     private readonly List<Rect> _slots = new();
 
     // The item itself, from its container: Content is set as soon as the container is realized,
     // DataContext only once it is attached, which can be after the first measure
-    private static bool IsTag(Control child) =>
-        (child is ContentPresenter { Content: LegendItem item } ? item : child.DataContext as LegendItem)
-            is { IsTag: true };
+    private static LegendItem? ItemOf(Control child) =>
+        child is ContentPresenter { Content: LegendItem item } ? item : child.DataContext as LegendItem;
+
+    private static bool StartsBlock(Control child) => ItemOf(child) is { StartsBlock: true };
+    private static bool StartsTag(Control child) => ItemOf(child) is { StartsTag: true };
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -55,27 +63,43 @@ public class LegendColumnsPanel : Panel
         double x = 0, y = 0;
         void NextColumn() { x += columnWidth; y = 0; }
 
+        // The rows from i up to (not including) the next one that matches `ends`
+        double HeightUntil(int i, Func<Control, bool> ends)
+        {
+            double total = children[i].DesiredSize.Height;
+            for (int j = i + 1; j < children.Count && !ends(children[j]); j++)
+                total += children[j].DesiredSize.Height;
+            return total;
+        }
+
+        // The row and the one after it - the least a heading may be left with
+        double WithNext(int i) =>
+            children[i].DesiredSize.Height
+            + (i + 1 < children.Count && !StartsBlock(children[i + 1]) ? children[i + 1].DesiredSize.Height : 0);
+
         for (int i = 0; i < children.Count; i++)
         {
             var child = children[i];
             double h = child.DesiredSize.Height;
 
-            if (IsTag(child) && y > 0)
+            if (y > 0 && StartsBlock(child))
             {
-                // The whole group: this tag and every process up to the next tag
-                double group = h;
-                for (int j = i + 1; j < children.Count && !IsTag(children[j]); j++)
-                    group += children[j].DesiredSize.Height;
+                // A group or a lone tag, whole
+                double block = HeightUntil(i, StartsBlock);
+                bool fitsHere = y + block <= columnHeight;
+                bool fitsFreshColumn = block <= columnHeight;
 
-                // Header plus its first process, the least that may stay together
-                double head = h + (i + 1 < children.Count && !IsTag(children[i + 1])
-                    ? children[i + 1].DesiredSize.Height
-                    : 0);
+                if (!fitsHere && (fitsFreshColumn || y + WithNext(i) > columnHeight))
+                    NextColumn();
+            }
+            else if (y > 0 && StartsTag(child))
+            {
+                // A tag inside a group that has to split: the tag with its processes, whole
+                double tag = HeightUntil(i, StartsTag);
+                bool fitsHere = y + tag <= columnHeight;
+                bool fitsFreshColumn = tag <= columnHeight;
 
-                bool fitsHere = y + group <= columnHeight;
-                bool fitsFreshColumn = group <= columnHeight;
-
-                if (!fitsHere && (fitsFreshColumn || y + head > columnHeight))
+                if (!fitsHere && (fitsFreshColumn || y + WithNext(i) > columnHeight))
                     NextColumn();
             }
             else if (y > 0 && y + h > columnHeight)

@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace Chronoscope.ViewModels;
 
 // The top level pages the navigation pane switches between
-public enum AppSection { Day, Statistics, Tags, Settings }
+public enum AppSection { Day, Statistics, Trend, Tags, Settings }
 
 // Shell of the app: which page is on screen, the history around it, and the window pin.
 // Replaces MAUI's Shell routing.
@@ -16,10 +16,11 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly StartupService _startupService;
     private readonly DialogService _dialogs;
 
-    // The day view and Statistics keep their state (and, see IKeepAlive, their views) across trips
+    // The day view, Statistics and Trend keep their state (and, see IKeepAlive, their views) across trips
     // to the other pages. The others are built fresh on each visit, as MAUI's transient pages were.
     private readonly DayViewModel _day;
     private readonly StatisticsViewModel _statistics;
+    private readonly TrendViewModel _trend;
 
     public MainWindowViewModel(SettingsService settingsService, DataService dataService,
         VaultExportService vaultExportService, StartupService startupService, DialogService dialogs)
@@ -31,6 +32,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _dialogs = dialogs;
         _day = new DayViewModel(settingsService, dataService, dialogs);
         _statistics = new StatisticsViewModel(settingsService, dataService, dialogs);
+        _trend = new TrendViewModel(settingsService, dataService, dialogs);
     }
 
     [ObservableProperty]
@@ -51,20 +53,23 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public Task StartAsync() => VisitAsync(new HistoryEntry(_day, AppSection.Day));
 
-    public Task NavigateToSectionAsync(AppSection section)
+    public async Task NavigateToSectionAsync(AppSection section)
     {
         if (section == Section && CurrentPage is not null && _history[_index].Page is not ExplorerRulesViewModel)
-            return Task.CompletedTask;
+            return;
+        if (!await MayLeaveSectionAsync(section))
+            return;
 
         ViewModelBase page = section switch
         {
             AppSection.Statistics => _statistics,
+            AppSection.Trend => _trend,
             AppSection.Tags => new TagsViewModel(_settingsService, _dataService, _dialogs, this),
             AppSection.Settings => new SettingsViewModel(_settingsService, _dataService, _vaultExportService, _startupService, _dialogs, this),
             _ => _day
         };
 
-        return VisitAsync(new HistoryEntry(page, section));
+        await VisitAsync(new HistoryEntry(page, section));
     }
 
     // Drill into a sub page (the Explorer rules of one process), within the current section
@@ -86,11 +91,54 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _index = -1;
 
     [RelayCommand]
-    public Task GoBackAsync() => _index > 0 ? MoveToAsync(_index - 1) : Task.CompletedTask;
+    public Task GoBackAsync() => _index > 0 ? StepToAsync(_index - 1) : Task.CompletedTask;
 
     [RelayCommand]
     public Task GoForwardAsync() =>
-        _index < _history.Count - 1 ? MoveToAsync(_index + 1) : Task.CompletedTask;
+        _index < _history.Count - 1 ? StepToAsync(_index + 1) : Task.CompletedTask;
+
+    private async Task StepToAsync(int index)
+    {
+        if (await MayLeaveSectionAsync(_history[index].Section))
+            await MoveToAsync(index);
+    }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Leaving With Unsaved Changes
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Before a move to another section (or closing the window, target null), every page of the
+    // section being left is asked whether it may go - newest first, so the Tags page is asked even
+    // when the Explorer rules it opened are what is on screen. Moving within a section (Tags to
+    // its Explorer rules and back) asks nothing: the edits are still there to come back to.
+    // Save and Discard never come through here - they are the page finishing itself.
+
+    private bool _confirming;
+
+    private async Task<bool> MayLeaveSectionAsync(AppSection? target)
+    {
+        if (_index < 0 || target == Section) return true;
+
+        // A question is already open (a thumb button pressed while it shows): not twice
+        if (_confirming) return false;
+
+        _confirming = true;
+        try
+        {
+            for (int i = _index; i >= 0 && _history[i].Section == Section; i--)
+            {
+                if (!await _history[i].Page.ConfirmLeaveAsync())
+                    return false;
+            }
+            return true;
+        }
+        finally
+        {
+            _confirming = false;
+        }
+    }
+
+    // The window is about to close: the same question, for whatever section is open
+    public Task<bool> ConfirmCloseAsync() => MayLeaveSectionAsync(null);
 
     // A page finishing itself (Save, Discard, Confirm, Cancel): back to where it was opened from,
     // and the page is gone - Forward must not bring back an editor whose work is already done.

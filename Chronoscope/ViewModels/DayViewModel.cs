@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using Avalonia;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,6 +14,7 @@ namespace Chronoscope.ViewModels;
 
 // The home page: one day as a nested pie (tags inside, their processes outside), its legend,
 // and the 24h timeline bar beneath. Ported from the MAUI MainPage.
+// Tags in groups add a level: groups innermost, then tags, then processes.
 public partial class DayViewModel : ViewModelBase, IKeepAlive
 {
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -98,13 +101,14 @@ public partial class DayViewModel : ViewModelBase, IKeepAlive
                 // Coming back to this page with nothing changed (same data, day and colours, and
                 // the rolling window not yet a minute older) keeps what is on screen, rather than
                 // rebuilding and re-animating the pie on every visit
-                var drawn = (apps, day, _settingsService.TagColorsVersion);
+                var drawn = (apps, day, _settingsService.TagColorsVersion, _dataService.GroupsVersion);
                 if (!reload && drawn == _drawn && DateTime.Now - _drawnAt < TimeSpan.FromMinutes(1))
                     continue;
 
                 LoadDayNestedPie(apps, day);
                 LoadDayTimeline(apps, day);
-                _drawn = (apps, day, _settingsService.TagColorsVersion); // drawing may colour new tags
+                // drawing may colour new tags
+                _drawn = (apps, day, _settingsService.TagColorsVersion, _dataService.GroupsVersion);
                 _drawnAt = DateTime.Now;
             }
             while (_refreshQueued);
@@ -126,7 +130,7 @@ public partial class DayViewModel : ViewModelBase, IKeepAlive
         }
     }
 
-    private (IReadOnlyList<AppsTagsTable>? Apps, DateTime Day, int Colors) _drawn;
+    private (IReadOnlyList<AppsTagsTable>? Apps, DateTime Day, int Colors, int Groups) _drawn;
     private DateTime _drawnAt;
 
     private DateTime _currentDay = DateTime.Today;
@@ -185,9 +189,17 @@ public partial class DayViewModel : ViewModelBase, IKeepAlive
     [ObservableProperty]
     public partial LegendItem[] LegendItems { get; private set; } = [];
 
-    // Colors the pie assigned to each process, reused by the timeline so both agree.
+    // Colors the pie gave each process, reused by the timeline so both agree.
     // Keyed by process, which assumes one Tag per Process (true for AppsTagsTable) - last write wins.
     private readonly Dictionary<string, string> _processColors = new();
+
+    // One tag of the day with its processes, and the top-level block it is drawn in: its group,
+    // or the tag alone when it has none
+    private sealed record DayTag(string Tag, double Seconds, List<(string Process, double Seconds)> Processes);
+    private sealed record DayBlock(string? Group, double Seconds, List<DayTag> Tags);
+
+    // The legend's tint for a group's rows - light enough for the text, strong enough to read as one block
+    private static IBrush GroupTint(Color c) => new ImmutableSolidColorBrush(Color.FromArgb(0x33, c.R, c.G, c.B));
 
     private void LoadDayNestedPie(IReadOnlyList<AppsTagsTable> data, DateTime day)
     {
@@ -209,88 +221,158 @@ public partial class DayViewModel : ViewModelBase, IKeepAlive
             return;
         }
 
-        // Build relevant Apps Table! Of the day, Grouped by Tag and by Process, both ordered by
-        // time spent descending, so the pie and the legend lead with the biggest tag.
-        var nested = dayRows
+        // The day's tags, each with its processes, both ordered by time spent descending
+        var tags = dayRows
             .Where(a => a.DurationSeconds > HeatmapAggregator.MinTrackedSeconds)
             .GroupBy(a => a.Tag)
-            .Select(a => new
-            {
-                // TAGS
-                Tag = a.Key,
-                Seconds = a.Sum(b => b.DurationSeconds),
-                Processes = a
-                .GroupBy(b => b.Process)
-                .Select(b => new
-                {
-                    // PROCESSES
-                    Process = b.Key,
-                    Seconds = b.Sum(b => b.DurationSeconds)
-                })
-                .OrderByDescending(b => b.Seconds)
-                .ToList()
-            })
-            .OrderByDescending(a => a.Seconds)
+            .Select(g => new DayTag(
+                g.Key,
+                g.Sum(a => a.DurationSeconds),
+                g.GroupBy(a => a.Process)
+                    .Select(p => (p.Key, p.Sum(a => a.DurationSeconds)))
+                    .OrderByDescending(p => p.Item2)
+                    .ToList()))
             .ToList();
 
-        // Progressively building the series and legend: an entry for each Tag and each Process.
-        // Tags sit on ring 0 ([seconds, null]), processes on ring 1 ([null, seconds]).
-        var series = new List<ISeries>();
-        var legendItemList = new List<LegendItem>();
+        // ...gathered into blocks: one per tag group, and one per tag that has no group. Biggest
+        // block first, and the biggest tag first within a group, so the pie and the legend lead
+        // with where most of the day went.
+        var groupByTag = _dataService.GroupByTag;
+        var blocks = tags
+            .GroupBy(t => groupByTag.TryGetValue(t.Tag, out var g) ? g : null)
+            .SelectMany(g => g.Key is null
+                ? g.Select(t => new DayBlock(null, t.Seconds, [t]))
+                : [new DayBlock(g.Key, g.Sum(t => t.Seconds), g.OrderByDescending(t => t.Seconds).ToList())])
+            .OrderByDescending(b => b.Seconds)
+            .ToList();
 
-        double totalSeconds = 0;
-        foreach (var tag in nested)
+        // The rings, inside out: tag groups, tags, processes. A day without a grouped tag has no
+        // group ring at all and looks as it always did. On a day with one, a tag outside any
+        // group fills its own spot on the group ring in its own colour, so the ring has no gaps.
+        bool hasGroups = blocks.Any(b => b.Group is not null);
+        int rings = hasGroups ? 3 : 2;
+        int groupRing = 0, tagRing = hasGroups ? 1 : 0, processRing = hasGroups ? 2 : 1;
+
+        double?[] On(int ring, double seconds)
         {
-            // TAG
-            string tagColor = _settingsService.GetTagColor(tag.Tag);
-            series.Add(Slice(tag.Tag, [tag.Seconds, null], tagColor));
+            var values = new double?[rings];
+            values[ring] = seconds;
+            return values;
+        }
 
-            legendItemList.Add(new LegendItem
+        var series = new List<ISeries>();
+        var legend = new List<LegendItem>();
+        double totalSeconds = 0;
+
+        foreach (var block in blocks)
+        {
+            IBrush? tint = null;
+            int firstRow = legend.Count;
+
+            if (block.Group is { } group)
             {
-                Name = tag.Tag,
-                Duration = TimeSpan.FromSeconds(tag.Seconds).ToString(@"hh\:mm"),
-                Color = Color.Parse(tagColor),
-                IsTag = true
-            });
+                // GROUP
+                string groupColor = _settingsService.GetGroupColor(group);
+                series.Add(Slice(group, On(groupRing, block.Seconds), groupColor));
 
-            int processCount = tag.Processes.Count;
-            for (int i = 0; i < processCount; i++)
-            {
-                // PROCESS
-                var proc = tag.Processes[i];
-
-                // Longest Process = Brightest Color
-                float value = 20f + (((processCount - (float)i) / processCount) * 80f);
-                string procColor = _settingsService.VaryColor(tagColor, value);
-                _processColors[proc.Process] = procColor;
-
-                series.Add(Slice(proc.Process, [null, proc.Seconds], procColor));
-
-                legendItemList.Add(new LegendItem
+                tint = GroupTint(Color.Parse(groupColor));
+                legend.Add(new LegendItem
                 {
-                    Name = proc.Process,
-                    Duration = TimeSpan.FromSeconds(proc.Seconds).ToString(@"hh\:mm"),
-                    Color = Color.Parse(procColor),
-                    IsTag = false
+                    Name = group,
+                    Duration = FormatDuration(block.Seconds),
+                    Color = Color.Parse(groupColor),
+                    Kind = LegendKind.Group,
+                    InGroup = true,
+                    Background = tint
+                });
+            }
+            else if (hasGroups)
+            {
+                // A tag of its own: its spot on the group ring, in its own colour
+                var lone = block.Tags[0];
+                series.Add(Slice(lone.Tag, On(groupRing, lone.Seconds), _settingsService.GetTagColor(lone.Tag)));
+            }
+
+            foreach (var tag in block.Tags)
+            {
+                // TAG
+                string tagColor = _settingsService.GetTagColor(tag.Tag);
+                series.Add(Slice(tag.Tag, On(tagRing, tag.Seconds), tagColor));
+
+                legend.Add(new LegendItem
+                {
+                    Name = tag.Tag,
+                    Duration = FormatDuration(tag.Seconds),
+                    Color = Color.Parse(tagColor),
+                    Kind = LegendKind.Tag,
+                    InGroup = tint is not null,
+                    Background = tint
                 });
 
-                totalSeconds += proc.Seconds;
+                int processCount = tag.Processes.Count;
+                for (int i = 0; i < processCount; i++)
+                {
+                    // PROCESS - longest process = brightest shade of its tag's colour
+                    var (process, seconds) = tag.Processes[i];
+                    float value = 20f + (((processCount - (float)i) / processCount) * 80f);
+                    string procColor = _settingsService.VaryColor(tagColor, value);
+                    _processColors[process] = procColor;
+
+                    series.Add(Slice(process, On(processRing, seconds), procColor));
+
+                    legend.Add(new LegendItem
+                    {
+                        Name = process,
+                        Duration = FormatDuration(seconds),
+                        Color = Color.Parse(procColor),
+                        Kind = LegendKind.Process,
+                        InGroup = tint is not null,
+                        Background = tint
+                    });
+
+                    totalSeconds += seconds;
+                }
+            }
+
+            // Round the group block's outer corners: top of its first row, bottom of its last
+            if (tint is not null)
+            {
+                int lastRow = legend.Count - 1;
+                for (int r = firstRow; r <= lastRow; r++)
+                {
+                    legend[r] = Rounded(legend[r], new CornerRadius(
+                        r == firstRow ? 6 : 0, r == firstRow ? 6 : 0,
+                        r == lastRow ? 6 : 0, r == lastRow ? 6 : 0));
+                }
             }
         }
 
-        // Add remaining time to reach 24h
+        // Add remaining time to reach 24h, on every ring
         var remaining = Math.Max(0, TimeSpan.FromDays(1).TotalSeconds - totalSeconds);
         var remainColor = _settingsService.GetTagColor("Remaining");
-        series.Add(Slice("Remaining", [remaining, null], remainColor));
-        series.Add(Slice("Remaining", [null, remaining], remainColor));
+        for (int ring = 0; ring < rings; ring++)
+            series.Add(Slice("Remaining", On(ring, remaining), remainColor));
 
         PieSeries = series.ToArray();
-        LegendItems = legendItemList.ToArray();
+        LegendItems = legend.ToArray();
         TrackedTotal = FormatTotal(totalSeconds);
         HasData = true;
 
         Debug.WriteLine($"Total series added: {series.Count}");
     }
+
+    private static string FormatDuration(double seconds) => TimeSpan.FromSeconds(seconds).ToString(@"hh\:mm");
+
+    private static LegendItem Rounded(LegendItem item, CornerRadius corners) => new()
+    {
+        Name = item.Name,
+        Duration = item.Duration,
+        Color = item.Color,
+        Kind = item.Kind,
+        InGroup = item.InGroup,
+        Background = item.Background,
+        Corners = corners
+    };
 
     // The hole in the middle holds the tracked total; the thin stroke in the card's own colour
     // parts neighbouring slices, which otherwise run together when two shades are close.

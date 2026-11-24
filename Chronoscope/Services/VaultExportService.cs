@@ -12,6 +12,11 @@ namespace Chronoscope;
 // The two apps never talk: this only produces a file. Obsidian's Dataview watches the folder and
 // re-renders on its own. The file MUST live inside the vault, because dv.io.load() resolves
 // vault-relative paths only.
+//
+// The file holds every tag under "tags" and every tag group under "groups", each entry the same
+// shape - so a note that draws a tag draws a group by reading data.groups[name] instead of
+// data.tags[name]. Two sections rather than one with marked names: a group may share its name
+// with a tag. A group also lists its member tags, as they were at the time of the export.
 public class VaultExportService
 {
     public const string FileName = "chronoscope-heatmap.json";
@@ -20,13 +25,15 @@ public class VaultExportService
     private readonly DataService _dataService;
 
     // No page asks for an export: it follows the data. Every reload (either page's Reload button,
-    // the day view's timer, the reload after a tag edit) and every colour change rewrites the file.
+    // the day view's timer, the reload after a tag edit), every colour change (tag or group) and
+    // every change of groups rewrites the file.
     public VaultExportService(SettingsService settingsService, DataService dataService)
     {
         _settingsService = settingsService;
         _dataService = dataService;
 
         _dataService.DataReloaded += RequestExport;
+        _dataService.GroupsChanged += RequestExport;
         _settingsService.TagColorsChanged += RequestExport;
     }
 
@@ -141,40 +148,45 @@ public class VaultExportService
         // the current year.
         // Off the UI thread: it walks every year of the dataset, and this runs on every reload.
         // The data is never mutated once loaded, so reading it from here is safe.
-        var perTag = await Task.Run(() => HeatmapAggregator.AggregateTagDays(data, year: null));
+        //
+        // Tags and groups in one pass: the grouped rows go in a second time under their group's
+        // key (the same trick the Statistics page uses), and the result is split by that key.
+        var groupByTag = _dataService.GroupByTag;
+        var totals = await Task.Run(() =>
+            HeatmapAggregator.AggregateTagDays(TagGrouping.WithGroupRows(data, groupByTag), year: null));
+        var perTag = totals.Where(t => !TagGrouping.IsGroupKey(t.Tag)).ToList();
+        var perGroup = totals.Where(t => TagGrouping.IsGroupKey(t.Tag)).ToList();
+
+        var periods = Periods(totals);
 
         var payload = new HeatmapExport
         {
             GeneratedAt = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture),
             Unit = "seconds",
+            Periods = periods.ToDictionary(p => p.Key, p => new PeriodExport { From = Iso(p.From), To = Iso(p.To) }),
             Tags = perTag.ToDictionary(
                 t => t.Tag,
-                t =>
+                t => Fill(new TagExport(), t, _settingsService.GetTagColor(t.Tag), periods)),
+
+            // Shaded against their own days, as the Statistics page's group cards are: a dark
+            // cell means a heavy day for the group, not a fixed number of hours
+            Groups = perGroup.ToDictionary(
+                g => TagGrouping.NameOf(g.Tag),
+                g =>
                 {
-                    string color = _settingsService.GetTagColor(t.Tag);
-                    return new TagExport
-                    {
-                        Color = ToRgbHex(color),
-                        // Skip(1) drops the ramp's "nothing tracked" slot: it is picked from
-                        // Chronoscope's current theme, and Obsidian themes itself.
-                        Ramp = _settingsService.BuildTagRamp(color, HeatmapAggregator.ShadeLevels)
-                            .Skip(1)
-                            .Select(ToRgbHex)
-                            .ToArray(),
-                        Thresholds = ThresholdsByYear(t.Days),
-                        Days = t.Days
-                            .OrderBy(d => d.Key)
-                            .ToDictionary(
-                                d => d.Key.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                                // ManicTime records whole seconds, so rounding the sum loses
-                                // nothing and keeps floating point artefacts out of the file.
-                                d => (long)Math.Round(d.Value))
-                    };
+                    string name = TagGrouping.NameOf(g.Tag);
+                    var entry = Fill(new GroupExport(), g, _settingsService.GetGroupColor(name), periods);
+                    entry.Tags = groupByTag
+                        .Where(kv => kv.Value == name)
+                        .Select(kv => kv.Key)
+                        .Order(StringComparer.CurrentCultureIgnoreCase)
+                        .ToArray();
+                    return entry;
                 })
         };
 
         // The relaxed encoder only matters for readability: the default escapes the timezone's
-        // "+" as \u002B and any umlaut in a tag name as \uXXXX. This file is consumed by
+        // "+" as + and any umlaut in a tag name as \uXXXX. This file is consumed by
         // JSON.parse in a note, never injected into HTML, so the stricter escaping buys nothing
         // and only makes the file unpleasant to open.
         string json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
@@ -191,18 +203,83 @@ public class VaultExportService
         File.Move(tempPath, finalPath, overwrite: true);
     }
 
-    // The cut points the Statistics page colours this tag by, per year, in seconds.
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Periods
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // A period is a span of days a note can draw, the same spans the Statistics page steps
+    // through: "pastYear" - its default "1 Year", the 365 days up to the export - and every
+    // calendar year with anything tracked, by its number ("2025"). Every entry carries a scale
+    // for every period, so a note picks a period by one name in both places:
+    //   data.periods.pastYear   and   data.tags.Main.scales.pastYear
     //
-    // Per YEAR because the chart buckets a tag against the year on screen, so all-time quartiles
-    // would colour the same day differently in Obsidian than in the app. Per tag because that is
-    // how the app scales: a shade means "a heavy day for this tag", not a fixed number of hours.
-    // Exporting them is what lets a note draw a legend that agrees with the grid it labels.
-    private static Dictionary<string, double[]> ThresholdsByYear(Dictionary<DateTime, double> days) =>
-        days.GroupBy(d => d.Key.Year)
-            .OrderBy(g => g.Key)
+    // The note takes the span from the file rather than its own clock: the cut points were worked
+    // out for exactly that span, and a note opened days after the export would otherwise draw a
+    // window the legend does not describe.
+
+    private sealed record Period(string Key, DateTime From, DateTime To);
+
+    private const string PastYearKey = "pastYear";
+
+    private static List<Period> Periods(List<TagDailyTotals> totals)
+    {
+        var (pastFrom, pastTo) = HeatmapAggregator.PastYear(DateTime.Today);
+        var periods = new List<Period> { new(PastYearKey, pastFrom, pastTo) };
+
+        var years = totals.SelectMany(t => t.Days.Keys).Select(d => d.Year).Distinct().OrderDescending();
+        foreach (var year in years)
+            periods.Add(new Period(year.ToString(CultureInfo.InvariantCulture), new DateTime(year, 1, 1), new DateTime(year, 12, 31)));
+
+        return periods;
+    }
+
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Entries
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    // One entry of the file, a tag's or a group's: its colour and shade ramp, its seconds per
+    // day, and its scale for every period
+    private T Fill<T>(T entry, TagDailyTotals totals, string color, List<Period> periods)
+        where T : TagExport
+    {
+        entry.Color = ToRgbHex(color);
+        // Skip(1) drops the ramp's "nothing tracked" slot: it is picked from Chronoscope's current
+        // theme, and Obsidian themes itself.
+        entry.Ramp = _settingsService.BuildTagRamp(color, HeatmapAggregator.ShadeLevels)
+            .Skip(1)
+            .Select(ToRgbHex)
+            .ToArray();
+        entry.Days = totals.Days
+            .OrderBy(d => d.Key)
             .ToDictionary(
-                g => g.Key.ToString(CultureInfo.InvariantCulture),
-                g => HeatmapAggregator.BucketThresholds(g.Select(d => d.Value)));
+                d => Iso(d.Key),
+                // ManicTime records whole seconds, so rounding the sum loses nothing and keeps
+                // floating point artefacts out of the file.
+                d => (long)Math.Round(d.Value));
+        entry.Scales = periods.ToDictionary(p => p.Key, p => ScaleFor(totals.Days, p));
+        return entry;
+    }
+
+    // How a period's days are shaded, and what each shade means - the Statistics page's own
+    // numbers. Per PERIOD because the page buckets against the span on screen, so all-time
+    // quartiles would colour the same day differently in Obsidian than in the app. Per entry
+    // because that is how the app scales: a shade means "a heavy day for this tag".
+    //
+    // The labels are the legend text itself, so a note draws the legend as given rather than
+    // rebuilding it - the two can then never disagree.
+    private static ScaleExport ScaleFor(Dictionary<DateTime, double> days, Period period)
+    {
+        double[] thresholds = HeatmapAggregator.BucketThresholds(days
+            .Where(d => d.Key >= period.From && d.Key <= period.To)
+            .Select(d => d.Value));
+
+        return new ScaleExport
+        {
+            Thresholds = thresholds,
+            Labels = HeatmapAggregator.BucketLabels(thresholds)
+        };
+    }
+
+    private static string Iso(DateTime day) => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     // BuildTagRamp hands back SKColor.ToString() and GetTagColor may carry an alpha channel, so
     // both can arrive as #AARRGGBB. CSS and the plugin want #RRGGBB.
@@ -218,19 +295,56 @@ public class VaultExportService
         };
     }
 
-    // Shape of the exported file. Private to the export: nothing else in the app binds to it.
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Shape of the File
+    // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // Private to the export: nothing else in the app binds to it.
+    //
+    //   generatedAt, unit
+    //   periods:  { "pastYear": { from, to }, "2026": { from, to }, ... }
+    //   tags:     { "<tag>":   { color, ramp[4], days{ "yyyy-MM-dd": seconds },
+    //                            scales{ "<period>": { thresholds[<=3], labels[5] } } } }
+    //   groups:   { "<group>": { ...the same..., tags[] } }
+    //
+    // A shade is picked as the app picks it: 0 ("none") for a day with nothing tracked, else the
+    // first threshold the day's seconds fit under (1-based), else 4. ramp[shade - 1] is its colour
+    // and labels[shade] its legend text.
+
     private class HeatmapExport
     {
         [JsonPropertyName("generatedAt")] public string GeneratedAt { get; init; } = "";
         [JsonPropertyName("unit")] public string Unit { get; init; } = "";
+        [JsonPropertyName("periods")] public Dictionary<string, PeriodExport> Periods { get; init; } = new();
         [JsonPropertyName("tags")] public Dictionary<string, TagExport> Tags { get; init; } = new();
+        [JsonPropertyName("groups")] public Dictionary<string, GroupExport> Groups { get; init; } = new();
+    }
+
+    // An inclusive span of days, as yyyy-MM-dd
+    private class PeriodExport
+    {
+        [JsonPropertyName("from")] public string From { get; init; } = "";
+        [JsonPropertyName("to")] public string To { get; init; } = "";
     }
 
     private class TagExport
     {
-        [JsonPropertyName("color")] public string Color { get; init; } = "";
-        [JsonPropertyName("ramp")] public string[] Ramp { get; init; } = [];
-        [JsonPropertyName("thresholds")] public Dictionary<string, double[]> Thresholds { get; init; } = new();
-        [JsonPropertyName("days")] public Dictionary<string, long> Days { get; init; } = new();
+        [JsonPropertyName("color")] public string Color { get; set; } = "";
+        [JsonPropertyName("ramp")] public string[] Ramp { get; set; } = [];
+        [JsonPropertyName("days")] public Dictionary<string, long> Days { get; set; } = new();
+        [JsonPropertyName("scales")] public Dictionary<string, ScaleExport> Scales { get; set; } = new();
+    }
+
+    // A group's entry: everything a tag's has, and which tags it is made of
+    private class GroupExport : TagExport
+    {
+        [JsonPropertyName("tags")] public string[] Tags { get; set; } = [];
+    }
+
+    // One period's shading of one entry: its cut points in seconds, and the legend text of each
+    // shade, "none" first
+    private class ScaleExport
+    {
+        [JsonPropertyName("thresholds")] public double[] Thresholds { get; init; } = [];
+        [JsonPropertyName("labels")] public string[] Labels { get; init; } = [];
     }
 }

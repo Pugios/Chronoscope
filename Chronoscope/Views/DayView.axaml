@@ -91,26 +91,41 @@
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
+              <!-- One row: a group, a tag or a process. A group's rows all carry its tint and
+                   sit flush against each other, so together they read as one block; the gap
+                   between columns is outside the tint. -->
               <DataTemplate x:DataType="local:LegendItem">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8"
-                      Width="236" Height="26" Margin="0,0,20,0">
-                  <Ellipse Width="10" Height="10" Margin="{Binding Indent}"
-                           VerticalAlignment="Center"
-                           Fill="{Binding Color, Converter={x:Static conv:ColorConverters.ToBrush}}" />
-                  <TextBlock Grid.Column="1" Text="{Binding Name}"
-                             TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                             ToolTip.Tip="{Binding Name}"
-                             Classes.Tag="{Binding IsTag}"
-                             Classes.Process="{Binding !IsTag}" />
-                  <TextBlock Grid.Column="2" Text="{Binding Duration}"
-                             FontFeatures="+tnum" VerticalAlignment="Center"
-                             Classes.Tag="{Binding IsTag}"
-                             Classes.Process="{Binding !IsTag}" />
-                </Grid>
+                <Border Width="236" Height="26" Margin="0,0,20,0" Padding="6,0"
+                        Background="{Binding Background}" CornerRadius="{Binding Corners}">
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <Ellipse Width="10" Height="10" Margin="{Binding Indent}"
+                             VerticalAlignment="Center"
+                             Fill="{Binding Color, Converter={x:Static conv:ColorConverters.ToBrush}}" />
+                    <!-- The name, and a group's badge right after it. Left-aligned, so a short name
+                         keeps its badge beside it; a long one is cut short to make room. -->
+                    <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="6"
+                          HorizontalAlignment="Left">
+                      <TextBlock Text="{Binding Name}"
+                                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                 ToolTip.Tip="{Binding Name}"
+                                 Classes.Heading="{Binding IsHeading}"
+                                 Classes.Process="{Binding IsProcess}" />
+                      <Border Grid.Column="1" IsVisible="{Binding IsGroup}" CornerRadius="8" Padding="6,0"
+                              VerticalAlignment="Center"
+                              Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                        <TextBlock Text="Group" FontSize="10" Classes="Secondary" />
+                      </Border>
+                    </Grid>
+                    <TextBlock Grid.Column="2" Text="{Binding Duration}"
+                               FontFeatures="+tnum" VerticalAlignment="Center"
+                               Classes.Heading="{Binding IsHeading}"
+                               Classes.Process="{Binding IsProcess}" />
+                  </Grid>
+                </Border>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
             <ItemsControl.Styles>
-              <Style Selector="TextBlock.Tag">
+              <Style Selector="TextBlock.Heading">
                 <Setter Property="FontWeight" Value="SemiBold" />
               </Style>
               <Style Selector="TextBlock.Process">

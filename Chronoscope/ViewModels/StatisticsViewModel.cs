@@ -58,12 +58,14 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
     [ObservableProperty]
     public partial bool IsBusy { get; private set; }
 
-    private (IReadOnlyList<AppsTagsTable>? Apps, Period? Period, int Colors) _shown;
+    private (IReadOnlyList<AppsTagsTable>? Apps, Period? Period, int Colors, int Groups) _shown;
 
     private bool _isRefreshing;
+    private bool _refreshAgain;
     private async Task RefreshAsync(bool forceReload = false)
     {
-        if (_isRefreshing) return;
+        // Asked again mid-refresh (a year change): run once more afterwards rather than drop it
+        if (_isRefreshing) { _refreshAgain = true; return; }
         _isRefreshing = true;
         IsBusy = true;
         try
@@ -76,12 +78,15 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
             // costs nothing, which is the point of keeping it alive. The period is compared by its
             // dates, so the rolling year moves on by itself when the page is opened on a new day.
             var period = CurrentPeriod();
-            var shown = (apps, period, _settingsService.TagColorsVersion);
+            var shown = (apps, period, _settingsService.TagColorsVersion, _dataService.GroupsVersion);
             if (!forceReload && shown == _shown)
                 return;
 
-            await LoadTagStatisticsAsync(apps, period);
-            _shown = (apps, period, _settingsService.TagColorsVersion); // building may colour new tags
+            // A card for every tag, and one more for every tag group: the grouped rows are fed in a
+            // second time under their group's key, so one aggregation yields both (see TagGrouping)
+            await LoadTagStatisticsAsync(TagGrouping.WithGroupRows(apps, _dataService.GroupByTag), period);
+            // building may colour new tags
+            _shown = (apps, period, _settingsService.TagColorsVersion, _dataService.GroupsVersion);
         }
         catch (InvalidOperationException ex)
         {
@@ -96,6 +101,11 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
         {
             _isRefreshing = false;
             IsBusy = false;
+            if (_refreshAgain)
+            {
+                _refreshAgain = false;
+                _ = RefreshAsync();
+            }
         }
     }
 
@@ -116,8 +126,8 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
         if (_year is int year)
             return new Period(new DateTime(year, 1, 1), new DateTime(year, 12, 31), year.ToString());
 
-        var today = DateTime.Today;
-        return new Period(today.AddDays(-364), today, RollingLabel);
+        var (from, to) = HeatmapAggregator.PastYear(DateTime.Today);
+        return new Period(from, to, RollingLabel);
     }
 
     private const string RollingLabel = "1 Year";
@@ -176,7 +186,7 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
     // One row per tag: the title, then two grids side by side. Year Overview answers how much and
     // on which days; Active Hours answers when during the day. Both cover the same year and are
     // built from the same set of activities, so they can be read against each other.
-    private async Task LoadTagStatisticsAsync(IReadOnlyList<AppsTagsTable> data, Period period)
+    private async Task LoadTagStatisticsAsync(IEnumerable<AppsTagsTable> data, Period period)
     {
         DisplayYear = period.Label;
 
@@ -252,7 +262,9 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
             .Select(tag => new TagStatistics
             {
                 Tag = tag.Tag,
-                TagColor = Color.Parse(_settingsService.GetTagColor(tag.Tag)),
+                Title = TagGrouping.NameOf(tag.Tag),
+                IsGroup = TagGrouping.IsGroupKey(tag.Tag),
+                TagColor = Color.Parse(ColorOf(tag.Tag)),
                 TotalLabel = TotalLabelFor(tag)
             })
             .ToArray();
@@ -285,7 +297,7 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
 
         // One colour per tag, one ramp from it, shared by both of that tag's grids. A shade
         // stands for a different span in each, which is why each panel carries its own strip.
-        string[] ramp = _settingsService.BuildTagRamp(_settingsService.GetTagColor(tag.Tag), HeatmapAggregator.ShadeLevels);
+        string[] ramp = _settingsService.BuildTagRamp(ColorOf(tag.Tag), HeatmapAggregator.ShadeLevels);
 
         card.Panels =
         [
@@ -320,11 +332,19 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
             .Select(t => new HiddenTag
             {
                 Tag = t,
+                Title = byTag[t].Title,
+                IsGroup = byTag[t].IsGroup,
                 TagColor = byTag[t].TagColor,
                 TotalLabel = byTag[t].TotalLabel
             })
             .ToArray();
     }
+
+    // A card's colour: a group card takes its group's colour, a tag card its tag's
+    private string ColorOf(string key) =>
+        TagGrouping.IsGroupKey(key)
+            ? _settingsService.GetGroupColor(TagGrouping.NameOf(key))
+            : _settingsService.GetTagColor(key);
 
     private static string TotalLabelFor(TagDailyTotals tag) =>
         $"{TimeSpan.FromSeconds(tag.TotalSeconds).TotalHours:F0}h over {tag.Days.Count} days";
@@ -401,7 +421,7 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
 
         var series = new HeatSeries<WeightedPoint>
         {
-            Name = tag.Tag,
+            Name = TagGrouping.NameOf(tag.Tag),   // the tooltip shows this: no "group:" key
             Values = cells,
             HeatMap = ramp.Select(hex => SKColor.Parse(hex).AsLvcColor()).ToArray(),
             // The weight IS the bucket, and the stops are evenly spaced over 0..ShadeLevels,
@@ -463,7 +483,7 @@ public partial class StatisticsViewModel : ViewModelBase, IKeepAlive
 
         var series = new HeatSeries<WeightedPoint>
         {
-            Name = tag.Tag,
+            Name = TagGrouping.NameOf(tag.Tag),   // the tooltip shows this: no "group:" key
             Values = points,
             HeatMap = ramp.Select(hex => SKColor.Parse(hex).AsLvcColor()).ToArray(),
             MinValue = 0,

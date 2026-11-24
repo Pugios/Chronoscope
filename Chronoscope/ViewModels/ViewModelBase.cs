@@ -14,4 +14,8 @@ public abstract class ViewModelBase : ObservableObject
     // view model becomes, or stops being, the one on screen - including on returning to it.
     public virtual Task OnNavigatedToAsync() => Task.CompletedTask;
     public virtual void OnNavigatedFrom() { }
+
+    // Asked before the page is left for another section, or the window is closed. A page with
+    // unsaved edits asks the user here (save / don't save / cancel); false keeps it on screen.
+    public virtual Task<bool> ConfirmLeaveAsync() => Task.FromResult(true);
 }

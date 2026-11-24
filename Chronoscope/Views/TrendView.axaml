@@ -1,0 +1,318 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Chronoscope.ViewModels"
+             xmlns:local="using:Chronoscope"
+             xmlns:conv="using:Chronoscope.Converters"
+             xmlns:controls="using:Chronoscope.Controls"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="Chronoscope.Views.TrendView"
+             x:DataType="vm:TrendViewModel">
+
+  <UserControl.Styles>
+    <!-- One style for every chart on the page: no zooming, no animation (the charts are rebuilt
+         whole on every change, so an animation would only replay from zero), own tooltip paints -->
+    <Style Selector="lvc|CartesianChart">
+      <Setter Property="controls:ChartPaints.OwnTooltip" Value="True" />
+      <Setter Property="ZoomMode" Value="None" />
+      <Setter Property="LegendPosition" Value="Hidden" />
+      <Setter Property="TooltipPosition" Value="Top" />
+      <Setter Property="AnimationsSpeed" Value="0:0:0" />
+    </Style>
+    <Style Selector="TextBlock.Cell">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="0,0,24,0" />
+    </Style>
+    <Style Selector="TextBlock.Head">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="0,0,24,0" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,*" RowSpacing="16" Margin="28,20,28,0">
+
+    <!-- Header: how much history the trend is taken from, and how far ahead it looks -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <TextBlock Classes="PageTitle" Text="Trend" VerticalAlignment="Center" />
+
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <ui:FAProgressRing IsActive="{Binding IsBusy}" IsVisible="{Binding IsBusy}"
+                           Width="22" Height="22" Margin="0,0,6,0" />
+        <!-- Centred on one line: a horizontal StackPanel stretches its children to its own
+             height, which put the drop-downs on the taller Refresh button's top edge -->
+        <ComboBox ItemsSource="{Binding HistoryOptions}" SelectedItem="{Binding SelectedHistory}"
+                  ToolTip.Tip="The weeks the trend is taken from" MinWidth="150"
+                  VerticalAlignment="Center" />
+        <ComboBox ItemsSource="{Binding HorizonOptions}" SelectedItem="{Binding SelectedHorizon}"
+                  ToolTip.Tip="How far ahead the charts look" MinWidth="150"
+                  VerticalAlignment="Center" />
+        <Button Classes="Icon" Margin="4,0,0,0" Command="{Binding RefreshCommand}"
+                ToolTip.Tip="Reload from ManicTime" VerticalAlignment="Center">
+          <ui:FASymbolIcon Symbol="Refresh" />
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <StackPanel Grid.Row="1" Spacing="8" IsVisible="{Binding IsEmpty}"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+      <ui:FASymbolIcon Symbol="CalendarEmpty" FontSize="40"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+      <TextBlock Text="{Binding EmptyMessage}" Classes="Secondary" TextWrapping="Wrap"
+                 MaxWidth="420" TextAlignment="Center" />
+    </StackPanel>
+
+    <ScrollViewer x:Name="TrendScroll" Grid.Row="1" IsVisible="{Binding !IsEmpty}"
+                  HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16" Margin="0,0,0,24">
+
+        <TextBlock Text="{Binding BasisLabel}" Classes="Secondary" TextWrapping="Wrap" />
+
+        <!-- Every tag and every group on one chart, the list beside it choosing which are drawn:
+             weeks so far, the trend line and the forecast, for any set together.
+             First on the page: it is the page's main chart. -->
+        <Border Classes="Card" Padding="16,14">
+          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="20" RowSpacing="8">
+            <StackPanel Grid.ColumnSpan="2" Spacing="2">
+              <TextBlock Classes="SectionTitle" Text="Per tag" />
+              <TextBlock Classes="Caption"
+                         Text="Solid: weeks so far · faint dashes: the trend they follow · dashed: forecast" />
+            </StackPanel>
+
+            <lvc:CartesianChart Grid.Row="1" Height="440" MinWidth="360"
+                                Series="{Binding TagsChart.Series, FallbackValue={x:Null}}"
+                                XAxes="{Binding TagsChart.XAxes, FallbackValue={x:Null}}"
+                                YAxes="{Binding TagsChart.YAxes, FallbackValue={x:Null}}"
+                                Sections="{Binding TagsChart.Sections, FallbackValue={x:Null}}" />
+
+            <!-- The list: every tag and group as a chip, read in columns - down the first as far as
+                 the chart is tall, then on into a second (ColumnFlowPanel). One column when they
+                 all fit in one; scrolling only once two full columns are not enough. A chip is a
+                 button that stays in or out: while its line is drawn it is filled with the line's
+                 colour, otherwise it is plain like the card around it. Groups carry the "Group"
+                 badge; their lines on the chart are a little heavier than a tag's. -->
+            <DockPanel Grid.Row="1" Grid.Column="1">
+              <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
+                <Button Content="All" Command="{Binding ShowAllTagsCommand}" Padding="10,3"
+                        VerticalAlignment="Center" />
+                <Button Content="None" Command="{Binding HideAllTagsCommand}" Padding="10,3"
+                        VerticalAlignment="Center" />
+              </StackPanel>
+              <!-- The chart is 440 tall; what is left beside it under the row above is the column -->
+              <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Cards}">
+                  <!-- The theme's ToggleButton draws from these keys. Made see-through here: the
+                       chip inside (Border.Chip) draws itself, in the line's colour, which no shared
+                       resource could do since every chip has a colour of its own. -->
+                  <ItemsControl.Resources>
+                    <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
+                  </ItemsControl.Resources>
+                  <!-- Off: plain, a thin outline, secondary text from the theme (so it follows light
+                       and dark). On: the line's colour, outline and all, with dark or light text,
+                       whichever reads on that colour. -->
+                  <ItemsControl.Styles>
+                    <Style Selector="Border.Chip">
+                      <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                    </Style>
+                    <Style Selector="ToggleButton:pointerover Border.Chip">
+                      <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </Style>
+                    <Style Selector="ToggleButton:pressed Border.Chip">
+                      <Setter Property="Opacity" Value="0.8" />
+                    </Style>
+                    <Style Selector="Border.Chip.Active">
+                      <Setter Property="BorderBrush" Value="Transparent" />
+                    </Style>
+
+                    <Style Selector="Border.Chip TextBlock.ChipText">
+                      <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </Style>
+                    <Style Selector="ToggleButton:pointerover Border.Chip TextBlock.ChipText">
+                      <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </Style>
+                    <Style Selector="Border.Chip.Active TextBlock.ChipText">
+                      <Setter Property="Foreground" Value="White" />
+                    </Style>
+                    <Style Selector="Border.Chip.Active.DarkText TextBlock.ChipText">
+                      <Setter Property="Foreground" Value="#1C1C1C" />
+                    </Style>
+
+                    <!-- The badge: a quiet pill off, a shade of the chip's colour on -->
+                    <Style Selector="Border.Chip Border.Badge">
+                      <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                    </Style>
+                    <Style Selector="Border.Chip.Active Border.Badge">
+                      <Setter Property="Background" Value="#30000000" />
+                    </Style>
+                  </ItemsControl.Styles>
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <controls:ColumnFlowPanel ColumnHeight="400" MaxColumns="2"
+                                                ColumnSpacing="6" RowSpacing="2" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="local:TrendTagCard">
+                      <ToggleButton IsChecked="{Binding IsShown}" Padding="0" BorderThickness="0"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                    ToolTip.Tip="{Binding Title}">
+                        <Border Classes="Chip" Classes.Active="{Binding IsShown}" Classes.DarkText="{Binding DarkText}"
+                                Background="{Binding ChipBackground}"
+                                BorderThickness="1" CornerRadius="6" Padding="10,3">
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="ChipText" Text="{Binding Title}" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="110" />
+                            <Border Classes="Badge" IsVisible="{Binding IsGroup}" CornerRadius="8" Padding="6,0"
+                                    VerticalAlignment="Center">
+                              <TextBlock Classes="ChipText" Text="Group" FontSize="10" />
+                            </Border>
+                          </StackPanel>
+                        </Border>
+                      </ToggleButton>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </DockPanel>
+          </Grid>
+        </Border>
+
+        <!-- The forecast in numbers: one row per tag and per group, columns lined up across rows -->
+        <Border Classes="Card" Padding="16,12">
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <StackPanel Grid.IsSharedSizeScope="True" Spacing="6">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition SharedSizeGroup="Tag" />
+                  <ColumnDefinition SharedSizeGroup="Now" />
+                  <ColumnDefinition SharedSizeGroup="Trend" />
+                  <ColumnDefinition SharedSizeGroup="Last" />
+                  <ColumnDefinition SharedSizeGroup="Next" />
+                  <ColumnDefinition SharedSizeGroup="Ytd" />
+                  <ColumnDefinition SharedSizeGroup="End" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Classes="Head" Text="Name" />
+                <TextBlock Grid.Column="1" Classes="Head" Text="Now" ToolTip.Tip="Average of the last four complete weeks" />
+                <TextBlock Grid.Column="2" Classes="Head" Text="Trend" ToolTip.Tip="How much the weekly hours grow or shrink each week" />
+                <TextBlock Grid.Column="3" Classes="Head" Text="Last 30 days" />
+                <TextBlock Grid.Column="4" Classes="Head" Text="Next 30 days" />
+                <TextBlock Grid.Column="5" Classes="Head" Text="This year so far" />
+                <TextBlock Grid.Column="6" Classes="Head" Text="By 31 Dec" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding Cards}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="4" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="local:TrendTagCard">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition SharedSizeGroup="Tag" />
+                        <ColumnDefinition SharedSizeGroup="Now" />
+                        <ColumnDefinition SharedSizeGroup="Trend" />
+                        <ColumnDefinition SharedSizeGroup="Last" />
+                        <ColumnDefinition SharedSizeGroup="Next" />
+                        <ColumnDefinition SharedSizeGroup="Ytd" />
+                        <ColumnDefinition SharedSizeGroup="End" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,0,24,0">
+                        <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                                 Fill="{Binding TagColor, Converter={x:Static conv:ColorConverters.ToBrush}}" />
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Border IsVisible="{Binding IsGroup}" CornerRadius="8" Padding="6,0"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                          <TextBlock Text="Group" FontSize="10" Classes="Secondary" />
+                        </Border>
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Classes="Cell" Text="{Binding NowLabel}" />
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="0,0,24,0">
+                        <ui:FASymbolIcon Symbol="Forward" FontSize="14" VerticalAlignment="Center"
+                                         RenderTransform="{Binding ArrowTurn}" ToolTip.Tip="{Binding DirectionLabel}" />
+                        <TextBlock Text="{Binding TrendLabel}" Classes="Secondary" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="3" Classes="Cell" Text="{Binding Last30Label}" />
+                      <TextBlock Grid.Column="4" Classes="Cell" Text="{Binding Next30Label}" FontWeight="SemiBold" />
+                      <TextBlock Grid.Column="5" Classes="Cell" Text="{Binding YearToDateLabel}" />
+                      <TextBlock Grid.Column="6" Classes="Cell" Text="{Binding YearEndLabel}" FontWeight="SemiBold" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+
+        <!-- The two overview charts side by side when there is room, stacked when there is not -->
+        <WrapPanel ItemSpacing="16" LineSpacing="16">
+
+          <Border Classes="Card" Padding="16,14" Width="560">
+            <StackPanel Spacing="8">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="SectionTitle" Text="Next 30 days vs last 30 days" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center"
+                            Background="{Binding LastColor, Converter={x:Static conv:ColorConverters.ToBrush}}" />
+                    <TextBlock Text="Last 30" Classes="Caption" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center"
+                            Background="{Binding NextColor, Converter={x:Static conv:ColorConverters.ToBrush}}" />
+                    <TextBlock Text="Next 30 (projected)" Classes="Caption" VerticalAlignment="Center" />
+                  </StackPanel>
+                </StackPanel>
+              </Grid>
+              <lvc:CartesianChart Height="260"
+                                  Series="{Binding MonthChart.Series, FallbackValue={x:Null}}"
+                                  XAxes="{Binding MonthChart.XAxes, FallbackValue={x:Null}}"
+                                  YAxes="{Binding MonthChart.YAxes, FallbackValue={x:Null}}" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="Card" Padding="16,14" Width="560">
+            <StackPanel Spacing="8">
+              <TextBlock Classes="SectionTitle" Text="Weekly hours by tag" />
+              <TextBlock Classes="Caption" Text="Stacked: history on the left, projection in the shaded part" />
+              <lvc:CartesianChart Height="240"
+                                  Series="{Binding ShareChart.Series, FallbackValue={x:Null}}"
+                                  XAxes="{Binding ShareChart.XAxes, FallbackValue={x:Null}}"
+                                  YAxes="{Binding ShareChart.YAxes, FallbackValue={x:Null}}"
+                                  Sections="{Binding ShareChart.Sections, FallbackValue={x:Null}}" />
+            </StackPanel>
+          </Border>
+        </WrapPanel>
+
+        <Border Classes="Card" Padding="16,14">
+          <StackPanel Spacing="8">
+            <TextBlock Classes="SectionTitle" Text="Year-end projection" />
+            <TextBlock Classes="Caption" Text="{Binding YearEndCaption}" />
+            <lvc:CartesianChart Height="280"
+                                Series="{Binding YearChart.Series, FallbackValue={x:Null}}"
+                                XAxes="{Binding YearChart.XAxes, FallbackValue={x:Null}}"
+                                YAxes="{Binding YearChart.YAxes, FallbackValue={x:Null}}"
+                                Sections="{Binding YearChart.Sections, FallbackValue={x:Null}}" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

@@ -74,8 +74,14 @@
                 <StackPanel Orientation="Horizontal" Spacing="10" Margin="38,0,0,0">
                   <Ellipse Width="12" Height="12" VerticalAlignment="Center"
                            Fill="{Binding TagColor, Converter={x:Static conv:ColorConverters.ToBrush}}" />
-                  <TextBlock Text="{Binding Tag}" FontSize="16" FontWeight="SemiBold"
+                  <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold"
                              VerticalAlignment="Center" />
+                  <!-- A group's card sums all of its tags; the badge tells it apart from a tag's -->
+                  <Border IsVisible="{Binding IsGroup}" CornerRadius="8" Padding="7,1"
+                          VerticalAlignment="Center"
+                          Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                    <TextBlock Text="Group" FontSize="11" Classes="Secondary" />
+                  </Border>
                   <TextBlock Text="{Binding TotalLabel}" Classes="Secondary"
                              VerticalAlignment="Center" />
                 </StackPanel>
@@ -166,7 +172,7 @@
            page (the grids above scroll sideways, which would otherwise let this grow forever) -->
       <StackPanel IsVisible="{Binding HasHiddenTags}" HorizontalAlignment="Left"
                   MaxWidth="{Binding #StatsScroll.Viewport.Width}">
-        <TextBlock Classes="SectionTitle" Text="Hidden tags" />
+        <TextBlock Classes="SectionTitle" Text="Hidden" />
         <ItemsControl x:Name="HiddenChips" ItemsSource="{Binding HiddenTags}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
@@ -180,14 +186,11 @@
                   <Ellipse Width="10" Height="10" VerticalAlignment="Center"
                            Fill="{Binding TagColor, Converter={x:Static conv:ColorConverters.ToBrush}}" />
                   <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Tag}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding TotalLabel}" Classes="Caption" />
                   </StackPanel>
-                  <Button Classes="Show" Margin="6,0,0,0" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                      <ui:FASymbolIcon Symbol="Add" FontSize="14" />
-                      <TextBlock Text="Show" VerticalAlignment="Center" />
-                    </StackPanel>
+                  <Button Classes="Show" Margin="6,0,0,0" VerticalAlignment="Center" ToolTip.Tip="Show again">
+                    <ui:FASymbolIcon Symbol="Add" FontSize="14" />
                   </Button>
                 </StackPanel>
               </Border>

@@ -97,6 +97,11 @@ public static class HeatmapAggregator
             .ToList();
     }
 
+    // The rolling "1 Year": the 365 days up to and including today, both ends inclusive. Shared by
+    // the Statistics page and the vault export, so the two always cover the same days.
+    public static (DateTime From, DateTime To) PastYear(DateTime today) =>
+        (today.Date.AddDays(-364), today.Date);
+
     // A calendar year as an inclusive span of days, or every day there is for null
     private static (DateTime From, DateTime To) YearRange(int? year) =>
         year is int y

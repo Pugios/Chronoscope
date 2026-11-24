@@ -2,20 +2,121 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Chronoscope.ViewModels"
              xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:controls="using:Chronoscope.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="900"
              x:Class="Chronoscope.Views.TagsView"
              x:DataType="vm:TagsViewModel">
 
+  <!-- The board's two kinds of item. Declared here rather than as an ItemTemplate so the group
+       box's own list of tags finds the same chip template. -->
+  <UserControl.DataTemplates>
+
+    <!-- A tag chip: its colour picker and its name. The whole chip is the handle to drag it by,
+         apart from the colour picker, which keeps its own clicks. -->
+    <DataTemplate DataType="vm:TagColorRow">
+      <Border Classes="TagChip" Padding="6,6,12,6" CornerRadius="6" VerticalAlignment="Top"
+              Background="{Binding ChipBackground}">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <ColorPicker Color="{Binding Color}" IsAlphaEnabled="False" Cursor="Hand" />
+          <TextBlock Text="{Binding Tag}" VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" MaxWidth="140"
+                     ToolTip.Tip="{Binding Tag}" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <!-- A group: a box in a wash of its colour, its cells in a grid kept as square as it can be.
+         The first cell is the group itself - colour and name, click the name to rename - and its
+         tags fill in beside and below it (TagGroupBox.LayOut picks the column count). -->
+    <DataTemplate DataType="vm:TagGroupBox">
+      <Border Classes="GroupBox" Padding="8" CornerRadius="8" VerticalAlignment="Top"
+              Background="{Binding Background}">
+        <ItemsControl ItemsSource="{Binding Cells}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <UniformGrid Columns="{Binding Columns}" ColumnSpacing="8" RowSpacing="8"
+                           x:DataType="vm:TagGroupBox" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+        </ItemsControl>
+      </Border>
+    </DataTemplate>
+
+    <!-- A group's own cell: no outline or background of its own, just the group's wash -->
+    <DataTemplate DataType="vm:GroupHeaderCell">
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="6,6,4,6" VerticalAlignment="Center">
+        <ColorPicker Color="{Binding Group.Color}" IsAlphaEnabled="False" />
+        <TextBox Classes="GroupName" Text="{Binding Group.Name, UpdateSourceTrigger=LostFocus}"
+                 ToolTip.Tip="Click to rename this group" MinWidth="80" />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- The last cell: dashed outline, no fill. Clicked, it becomes a box for the new tag's name;
+         Enter adds it, Escape or an empty name leaves it be (see TagsView.axaml.cs). -->
+    <DataTemplate DataType="vm:AddTagCell">
+      <Panel Classes="AddTagCell" MinHeight="44" MinWidth="120" Cursor="Hand" Background="Transparent"
+             VerticalAlignment="Top">
+        <Rectangle Stroke="{DynamicResource TextFillColorTertiaryBrush}" StrokeThickness="1.5"
+                   StrokeDashArray="4,3" RadiusX="6" RadiusY="6" />
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="14,0"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    IsVisible="{Binding !IsEditing}">
+          <ui:FASymbolIcon Symbol="Add" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+          <TextBlock Text="Add Tag" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+        <TextBox Classes="NewTagName" Text="{Binding Name}" IsVisible="{Binding IsEditing}"
+                 PlaceholderText="Tag name" Width="160" Margin="6" VerticalAlignment="Center" />
+      </Panel>
+    </DataTemplate>
+    <!-- The tag picker's last entry: an action, so it looks like one - icon, accent colour -->
+    <DataTemplate DataType="vm:AddTagChoice">
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <ui:FASymbolIcon Symbol="Add" FontSize="14" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+        <TextBlock Text="Add Tag" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
+  <UserControl.Styles>
+    <!-- The whole chip is the drag handle (its colour picker sets its own cursor back) -->
+    <Style Selector="Border.TagChip">
+      <Setter Property="Cursor" Value="SizeAll" />
+    </Style>
+
+    <!-- Where a dragged tag would land -->
+    <Style Selector="Border.TagChip.DropTarget, Border.GroupBox.DropTarget">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="Border.TagChip.Dragged">
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
+
+    <!-- The group name reads as a heading until clicked, then edits in place -->
+    <Style Selector="TextBox.GroupName">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Padding" Value="4,2" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="TextBox.GroupName:not(:focus-within) /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBox.GroupName:pointerover:not(:focus-within) /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid RowDefinitions="Auto,*" RowSpacing="16" Margin="28,20,28,0">
 
     <!-- Header. Nothing is written until Save; leaving any other way discards the edits. -->
     <Grid ColumnDefinitions="*,Auto">
-      <StackPanel VerticalAlignment="Center">
-        <TextBlock Classes="PageTitle" Text="Tags" />
-        <TextBlock Classes="Secondary" Text="Which tag each process counts toward, and how each tag is drawn" />
-      </StackPanel>
+      <TextBlock Classes="PageTitle" Text="Tags" VerticalAlignment="Center" />
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <ui:FAProgressRing IsActive="{Binding IsBusy}" IsVisible="{Binding IsBusy}"
                            Width="22" Height="22" Margin="0,0,8,0" />
@@ -35,30 +136,26 @@
     <ScrollViewer Grid.Row="1">
       <StackPanel Spacing="24" Margin="0,0,0,28">
 
-        <!-- Tag colours -->
+        <!-- Tags: every tag as a chip with its colour, grouped tags together in their group's
+             box. Arranged by dragging - see TagsView.axaml.cs. Untitled: the page title says it. -->
         <StackPanel>
-          <TextBlock Classes="SectionTitle" Text="Tag colours" />
           <Border Classes="Card">
-            <ItemsControl ItemsSource="{Binding TagColors}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel ItemSpacing="10" LineSpacing="10" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:TagColorRow">
-                  <Border Width="196" Padding="6,6,12,6" CornerRadius="6"
-                          Background="{DynamicResource SubtleFillColorSecondaryBrush}">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                      <ColorPicker Color="{Binding Color}" IsAlphaEnabled="False" />
-                      <TextBlock Text="{Binding Tag}" VerticalAlignment="Center"
-                                 TextTrimming="CharacterEllipsis" MaxWidth="110"
-                                 ToolTip.Tip="{Binding Tag}" />
-                    </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <StackPanel Spacing="12">
+              <!-- The board. Transparent so its empty space is a drop target; the drag layer on
+                   top carries the chip that follows the pointer and never takes the pointer -->
+              <Panel x:Name="Board" Background="Transparent" MinHeight="60" Focusable="True">
+                <!-- Packed rather than wrapped, so loose tags stack in rows beside a tall group
+                     instead of leaving the rest of its height empty -->
+                <ItemsControl x:Name="BoardItems" ItemsSource="{Binding Board}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <controls:PackingPanel ItemSpacing="10" LineSpacing="10" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <Canvas x:Name="DragLayer" IsHitTestVisible="False" />
+              </Panel>
+            </StackPanel>
           </Border>
         </StackPanel>
 
@@ -78,10 +175,9 @@
                 <!-- Assign Tag to selected Rows -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <TextBlock Text="Apply" VerticalAlignment="Center" />
-                  <ComboBox ItemsSource="{Binding AvailableTags}"
-                            SelectedItem="{Binding SelectedTag}"
+                  <ComboBox ItemsSource="{Binding TagChoices}"
+                            SelectedItem="{Binding SelectedChoice}"
                             PlaceholderText="Select tag..." Width="160" />
-                  <TextBox Text="{Binding NewTag}" PlaceholderText="Or new tag..." Width="150" />
                   <TextBlock Text="to selected rows" VerticalAlignment="Center" />
                   <Button Command="{Binding AssignTagCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
